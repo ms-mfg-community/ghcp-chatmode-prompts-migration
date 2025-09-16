@@ -1,1 +1,1 @@
-# GitHub Copilot Chadmodes & Prompts
+# GitHub Copilot Chatmodes & Prompts
