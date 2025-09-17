@@ -121,10 +121,11 @@ Status reports are stored in the `reports/Report-Status.md` file, providing a ce
 
 1. Clone this repository
 2. Install [GitHub Copilot](https://copilot.github.com/) in your Visual Studio Code
-3. Open one of the use case projects in VS Code
-4. Start a chat with GitHub Copilot using the prompt:  "`/phase1-planmigration` under the folder #file:02-NetFramework30-ASPNET-WEB" to begin the migration planning
-5. Use `/getstatus` at any time to check the current migration status
-6. Follow the guided prompts to complete each phase of the migration process
+3. Open one of your use case projects
+4. Add the appropriate chatmodes and prompts folders to your project in the .github folder
+5. Start a chat with GitHub Copilot using the prompt:  "`/phase1-planmigration` under the folder #file:02-NetFramework30-ASPNET-WEB" to begin the migration planning
+6. Use `/getstatus` at any time to check the current migration status
+7. Follow the guided prompts to complete each phase of the migration process
 
 ## Target Azure Hosting Platforms
 
@@ -138,14 +139,6 @@ The migration process supports multiple Azure hosting options:
 
 The repository includes support for migrating from various authentication systems to Azure Entra ID, ensuring secure access to modernized applications.
 
-## Use Cases
-
-This repository contains example applications that can be used to test prompts and understand how GitHub Copilot works in the context of migration and modernization:
-
-- **ASP Classic Apps**: Migration path for legacy ASP applications
-- **.NET Framework Web Apps**: Upgrading to modern .NET versions
-- **WCF Services**: Converting to RESTful APIs
-- **Java Applications**: Modernizing for Azure compatibility
 
 ## Improved Prompt Structure
 
