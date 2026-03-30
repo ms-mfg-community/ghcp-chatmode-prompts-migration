@@ -1,0 +1,90 @@
+@page "/reports"
+@rendermode InteractiveServer
+@inject IWebHostEnvironment Env
+
+<PageTitle>Reports — App Modernization</PageTitle>
+
+<div class="container-fluid py-4">
+    <h2 class="mb-4">📊 Reports</h2>
+    
+    <div class="mb-3">
+        <input type="text" class="form-control" placeholder="Search reports..." @bind="_searchFilter" @bind:event="oninput" />
+    </div>
+
+    @if (_reports.Any())
+    {
+        <div class="list-group">
+            @foreach (var report in FilteredReports)
+            {
+                <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(_selectedReport == report.Path ? "active" : "")"
+                        @onclick="() => SelectReport(report.Path)">
+                    <div>
+                        <strong>@report.Name</strong>
+                        <br /><small class="@(_selectedReport == report.Path ? "text-white-50" : "text-muted")">@report.LastModified.ToString("MMM d, yyyy h:mm tt") — @FormatSize(report.Size)</small>
+                    </div>
+                    <span class="badge bg-primary rounded-pill">MD</span>
+                </button>
+            }
+        </div>
+
+        @if (_selectedReport is not null)
+        {
+            <div class="mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5>@Path.GetFileName(_selectedReport)</h5>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _selectedReport = null">Close</button>
+                </div>
+                <AppModernization.Web.Components.Reports.ReportViewer FilePath="@_selectedReport" />
+            </div>
+        }
+    }
+    else
+    {
+        <div class="text-center text-muted py-5">
+            <div class="mb-3" style="font-size: 2.5rem;">📄</div>
+            <p>No reports generated yet.</p>
+            <p class="small">Reports are created during the migration phases. Start with Phase 0 or Phase 1.</p>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ReportFile> _reports = new();
+    private string? _selectedReport;
+    private string _searchFilter = "";
+
+    private IEnumerable<ReportFile> FilteredReports =>
+        string.IsNullOrWhiteSpace(_searchFilter)
+            ? _reports
+            : _reports.Where(r => r.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnInitialized()
+    {
+        var reportsPath = Path.Combine(Env.ContentRootPath, "..", "..", "reports");
+        if (Directory.Exists(reportsPath))
+        {
+            _reports = Directory.GetFiles(reportsPath, "*.md")
+                .Select(f => new FileInfo(f))
+                .Select(fi => new ReportFile { Name = fi.Name, Path = fi.FullName, LastModified = fi.LastWriteTimeUtc, Size = fi.Length })
+                .OrderByDescending(r => r.LastModified)
+                .ToList();
+        }
+    }
+
+    private void SelectReport(string path) => _selectedReport = _selectedReport == path ? null : path;
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1048576) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / 1048576.0:F1} MB";
+    }
+
+    private class ReportFile
+    {
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "";
+        public DateTime LastModified { get; set; }
+        public long Size { get; set; }
+    }
+}

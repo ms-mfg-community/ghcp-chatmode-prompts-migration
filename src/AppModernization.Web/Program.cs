@@ -1,3 +1,4 @@
+using AppModernization.Web;
 using AppModernization.Web.Components;
 using AppModernization.Web.Services;
 
@@ -10,6 +11,7 @@ builder.Services.AddRazorComponents()
 // App Modernization services
 builder.Services.AddSingleton<AgentPromptService>();
 builder.Services.AddSingleton<CopilotService>();
+builder.Services.AddSingleton<ProjectPersistenceService>();
 builder.Services.AddScoped<MigrationStateService>();
 
 var app = builder.Build();
@@ -40,6 +42,7 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+app.MapHealthCheckEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

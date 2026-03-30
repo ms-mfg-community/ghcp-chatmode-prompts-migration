@@ -21,6 +21,11 @@ public class MigrationStateService
         return project;
     }
 
+    public void LoadProject(MigrationProject project)
+    {
+        CurrentProject = project;
+    }
+
     public PhaseInfo? GetCurrentPhase()
     {
         if (CurrentProject is null) return null;

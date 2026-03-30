@@ -1,0 +1,8 @@
+name: app-modernization-wizard
+metadata:
+  template: azd-init
+services:
+  web:
+    project: .
+    language: csharp
+    host: appservice

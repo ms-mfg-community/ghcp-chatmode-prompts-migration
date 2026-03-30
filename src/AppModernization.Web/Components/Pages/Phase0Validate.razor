@@ -1,0 +1,103 @@
+@page "/phase0/validate"
+@rendermode InteractiveServer
+@using AppModernization.Web.Models
+@using AppModernization.Web.Components.Wizard
+@inject Services.MigrationStateService StateService
+@inject NavigationManager Navigation
+
+<PageTitle>Phase 0: Validate — App Modernization</PageTitle>
+
+@if (_phase is not null)
+{
+    <PhasePage Phase="_phase">
+        <PhaseContent>
+            <div class="mb-4">
+                <h5>✅ QA Validation Phase</h5>
+                <p>
+                    This phase reviews all extracted artifacts for gaps, missing edge cases, and
+                    inconsistencies. The validation assistant will cross-reference discovery outputs
+                    with specifications to ensure nothing was lost in translation.
+                </p>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h6 class="card-title">Validation Checklist</h6>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">🔲 Requirements completeness</li>
+                        <li class="list-group-item">🔲 Field spec accuracy</li>
+                        <li class="list-group-item">🔲 User story quality</li>
+                        <li class="list-group-item">🔲 Process map consistency</li>
+                        <li class="list-group-item">🔲 Cross-reference validation</li>
+                    </ul>
+                </div>
+            </div>
+
+            @if (_phase.Status == PhaseStatus.NotStarted)
+            {
+                <div class="text-center py-3">
+                    <p class="text-muted mb-3">
+                        Use the chat panel on the right to interact with the validation assistant.
+                        Click <strong>Get Started</strong> to begin.
+                    </p>
+                    <button class="btn btn-primary btn-lg" @onclick="StartPhase">
+                        🚀 Get Started
+                    </button>
+                </div>
+            }
+        </PhaseContent>
+        <PhaseActions>
+            <div class="d-flex justify-content-between">
+                <a href="/phase0/specify" class="btn btn-outline-secondary">← Previous</a>
+                <div>
+                    <button class="btn btn-outline-secondary me-2" @onclick="SkipPhase">Skip</button>
+                    <button class="btn btn-success" @onclick="CompletePhase"
+                            disabled="@(_phase.Status != PhaseStatus.InProgress)">
+                        Complete & Continue →
+                    </button>
+                </div>
+            </div>
+        </PhaseActions>
+    </PhasePage>
+}
+else
+{
+    <div class="text-center py-5">
+        <h4 class="text-muted">No active project</h4>
+        <p>Please start a new migration project first.</p>
+        <a href="/" class="btn btn-primary">Go to Home</a>
+    </div>
+}
+
+@code {
+    private PhaseInfo? _phase;
+
+    protected override void OnInitialized()
+    {
+        if (StateService.CurrentProject is null)
+            StateService.InitializeProject("New Migration Project");
+
+        _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase0-validate");
+    }
+
+    private void StartPhase()
+    {
+        if (_phase is null) return;
+        StateService.StartPhase(_phase.Id);
+        StateHasChanged();
+    }
+
+    private void SkipPhase()
+    {
+        if (_phase is null) return;
+        StateService.SkipPhase(_phase.Id);
+        Navigation.NavigateTo("/phase1/plan");
+    }
+
+    private void CompletePhase()
+    {
+        if (_phase is null) return;
+        StateService.CompletePhase(_phase.Id);
+        Navigation.NavigateTo("/phase1/plan");
+    }
+}
