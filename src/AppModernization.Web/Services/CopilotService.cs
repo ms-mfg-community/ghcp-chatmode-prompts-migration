@@ -120,21 +120,34 @@ public class CopilotService : IAsyncDisposable
             switch (evt)
             {
                 case AssistantMessageDeltaEvent delta:
-                    OnMessageReceived?.Invoke(sessionId, new ChatMessage
+                    // Skip empty deltas (e.g. tool execution start/complete signals)
+                    if (!string.IsNullOrEmpty(delta.Data.DeltaContent))
                     {
-                        Role = "assistant",
-                        Content = delta.Data.DeltaContent ?? "",
-                        IsStreaming = true
-                    });
+                        OnMessageReceived?.Invoke(sessionId, new ChatMessage
+                        {
+                            Role = "assistant",
+                            Content = delta.Data.DeltaContent,
+                            IsStreaming = true
+                        });
+                    }
                     break;
 
                 case AssistantMessageEvent msg:
-                    OnMessageReceived?.Invoke(sessionId, new ChatMessage
+                    // Skip empty assistant messages (e.g. tool execution wrappers)
+                    if (!string.IsNullOrWhiteSpace(msg.Data.Content))
                     {
-                        Role = "assistant",
-                        Content = msg.Data.Content ?? "",
-                        IsStreaming = false
-                    });
+                        OnMessageReceived?.Invoke(sessionId, new ChatMessage
+                        {
+                            Role = "assistant",
+                            Content = msg.Data.Content,
+                            IsStreaming = false
+                        });
+                    }
+                    else
+                    {
+                        // Signal idle for empty final messages so streaming state resets
+                        OnSessionIdle?.Invoke(sessionId);
+                    }
                     break;
 
                 case SessionIdleEvent:

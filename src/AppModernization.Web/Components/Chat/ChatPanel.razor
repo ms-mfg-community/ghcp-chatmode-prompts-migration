@@ -183,6 +183,10 @@
     {
         if (sessionId != _currentSessionId) return;
 
+        // Skip empty messages entirely — these are SDK artifacts (tool execution signals, etc.)
+        if (string.IsNullOrWhiteSpace(message.Content))
+            return;
+
         InvokeAsync(() =>
         {
             if (message.IsStreaming)

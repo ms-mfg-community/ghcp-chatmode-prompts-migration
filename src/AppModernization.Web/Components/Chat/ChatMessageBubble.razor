@@ -1,6 +1,9 @@
 @using AppModernization.Web.Models
 @using Markdig
 
+@* Don't render empty messages *@
+@if (!string.IsNullOrWhiteSpace(Message.Content) || Message.IsStreaming)
+{
 <div class="chat-message @Message.Role mb-3 @(Message.Role == "user" ? "text-end" : "")">
     <div class="d-inline-block @GetBubbleClasses() px-3 py-2 rounded-3" style="max-width: 85%;">
         <div class="chat-message-role small fw-semibold mb-1 @GetRoleLabelColor()">
@@ -25,6 +28,7 @@
         </div>
     </div>
 </div>
+}
 
 @code {
     [Parameter, EditorRequired]
