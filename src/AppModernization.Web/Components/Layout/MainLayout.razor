@@ -82,6 +82,53 @@
                             </a>
                             <span class="text-muted small">or</span>
                         }
+                        else
+                        {
+                            @* Setup nudge when OAuth not configured *@
+                            <div class="position-relative" @onmouseenter="() => _showSetup = true" @onmouseleave="() => _showSetup = false">
+                                <span class="badge bg-warning-subtle text-warning-emphasis" style="cursor: help;">⚠ OAuth not configured</span>
+                                @if (_showSetup)
+                                {
+                                    <div class="position-absolute end-0 mt-1 p-3 bg-white border rounded shadow-lg" style="width: 420px; z-index: 1050; font-size: 0.875rem;">
+                                        <h6 class="fw-bold mb-2">🔧 Enable GitHub OAuth Sign-In</h6>
+                                        <p class="small text-muted mb-2">To enable the "Sign in with GitHub" button, configure an OAuth App or GitHub App:</p>
+
+                                        <div class="mb-2">
+                                            <strong>Step 1:</strong> Create an OAuth App at
+                                            <a href="https://github.com/settings/developers" target="_blank">github.com/settings/developers</a>
+                                        </div>
+                                        <div class="mb-2 ps-3">
+                                            <table class="table table-sm table-borderless mb-0" style="font-size: 0.8rem;">
+                                                <tr><td class="text-muted pe-2">App name:</td><td><code>App Modernization Wizard</code></td></tr>
+                                                <tr><td class="text-muted pe-2">Homepage:</td><td><code>https://localhost:5001</code></td></tr>
+                                                <tr><td class="text-muted pe-2">Callback:</td><td><code>https://localhost:5001/signin-github</code></td></tr>
+                                            </table>
+                                        </div>
+
+                                        <div class="mb-2">
+                                            <strong>Step 2:</strong> Add credentials via user-secrets (recommended):
+                                        </div>
+                                        <pre class="bg-dark text-light p-2 rounded mb-2" style="font-size: 0.75rem; white-space: pre-wrap;">cd src/AppModernization.Web
+dotnet user-secrets set "GitHub:ClientId" "your-id"
+dotnet user-secrets set "GitHub:ClientSecret" "your-secret"</pre>
+
+                                        <div class="mb-2">
+                                            Or set in <code>appsettings.json</code>:
+                                        </div>
+                                        <pre class="bg-dark text-light p-2 rounded mb-2" style="font-size: 0.75rem;">"GitHub": { "ClientId": "...", "ClientSecret": "..." }</pre>
+
+                                        <div>
+                                            <strong>Step 3:</strong> Restart the app. The sign-in button will appear automatically.
+                                        </div>
+
+                                        <hr class="my-2" />
+                                        <p class="small text-muted mb-0">
+                                            You can still sign in now with a <strong>Personal Access Token</strong> using the field to the right. →
+                                        </p>
+                                    </div>
+                                }
+                            </div>
+                        }
 
                         @* PAT inline form — always available *@
                         <form action="/auth/pat-login" method="post" class="d-flex align-items-center gap-1">
@@ -109,6 +156,7 @@
 
 @code {
     private bool _showHelp;
+    private bool _showSetup;
     private bool _oauthConfigured;
 
     [Inject] private IConfiguration Configuration { get; set; } = default!;
