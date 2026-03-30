@@ -79,12 +79,14 @@ No server configuration needed — just paste a token in the UI.
 2. Create a **fine-grained token** with these settings:
    - **Resource owner**: Your personal account (not an organization)
    - **Repository access**: No repositories (none required)
+   - Account permissions → **Copilot Chat**: Read-only
+   - Account permissions → **Copilot Requests**: Read and write
    - Account permissions → **Profile**: Read-only
    - Account permissions → **Email addresses**: Read-only (optional)
-3. Or create a **classic token** with scopes: `read:user`, `user:email`
+3. Or create a **classic token** with scopes: `read:user`, `user:email`, `copilot`
 4. Paste the token into the PAT field in the app's top bar and click **Go**
 
-> **Note**: The PAT belongs to your personal GitHub account. No organization or repository access is needed — the app only reads your profile to display your name and avatar.
+> **Note**: The PAT belongs to your personal GitHub account. No organization or repository access is needed. The Copilot permissions are required so the SDK can make Copilot API calls on your behalf. Classic PATs (`ghp_` prefix) are **not supported** by the Copilot SDK — use fine-grained (`github_pat_` prefix) instead.
 
 ## Repository Structure
 
