@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
 
 <div class="page">
     <div class="sidebar">
@@ -6,8 +7,26 @@
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        <div class="top-row px-4 d-flex justify-content-between align-items-center">
+            <div>
+                <a href="https://github.com/ms-mfg-community/ghcp-chatmode-prompts-migration" target="_blank">Docs</a>
+            </div>
+            <AuthorizeView>
+                <Authorized>
+                    <div class="d-flex align-items-center gap-2">
+                        <img src="@context.User.FindFirst("urn:github:avatar")?.Value"
+                             alt="avatar" class="rounded-circle" width="28" height="28"
+                             onerror="this.style.display='none'" />
+                        <span class="fw-semibold small">@context.User.Identity?.Name</span>
+                        <a href="/auth/logout" class="btn btn-sm btn-outline-secondary ms-2">Sign out</a>
+                    </div>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/auth/login" class="btn btn-sm btn-dark">
+                        <span class="me-1">🔑</span> Sign in with GitHub
+                    </a>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
 
         <article class="content px-4">
