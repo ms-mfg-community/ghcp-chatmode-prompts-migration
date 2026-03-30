@@ -182,6 +182,31 @@ Use Phase 0 when the legacy system is undocumented, original developers are unav
 
 ## Getting Started
 
+### Quick Start (Web UI)
+
+The fastest way to get started is the setup script:
+
+```bash
+# Clone and run setup
+git clone https://github.com/ms-mfg-community/ghcp-chatmode-prompts-migration.git
+cd ghcp-chatmode-prompts-migration
+./setup.ps1
+```
+
+The setup script will:
+1. ✅ Check prerequisites (.NET 10 SDK, GitHub CLI, Copilot CLI)
+2. ✅ Walk you through GitHub OAuth App registration (opens browser, prompts for credentials)
+3. ✅ Store secrets securely in `dotnet user-secrets` (not in source code)
+4. ✅ Authenticate the Copilot CLI if needed
+5. ✅ Build and start the app at `https://localhost:7292`
+
+**Flags:**
+- `./setup.ps1 -SkipOAuth` — Skip OAuth setup, use PAT login only
+- `./setup.ps1 -StartOnly` — Just start the app (already configured)
+- `./setup.ps1 -Help` — Show detailed help
+
+### Using Agents in VS Code (no web UI)
+
 1. Clone this repository
 2. Install [GitHub Copilot](https://copilot.github.com/) in VS Code
 3. Copy the `.github/agents/` folder (and optionally `templates/`) into your target project's `.github/` directory
