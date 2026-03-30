@@ -76,11 +76,15 @@ The web wizard supports three authentication methods. Choose whichever fits your
 No server configuration needed — just paste a token in the UI.
 
 1. Go to [github.com/settings/tokens](https://github.com/settings/tokens?type=beta)
-2. Create a **fine-grained token** with:
+2. Create a **fine-grained token** with these settings:
+   - **Resource owner**: Your personal account (not an organization)
+   - **Repository access**: No repositories (none required)
    - Account permissions → **Profile**: Read-only
    - Account permissions → **Email addresses**: Read-only (optional)
 3. Or create a **classic token** with scopes: `read:user`, `user:email`
 4. Paste the token into the PAT field in the app's top bar and click **Go**
+
+> **Note**: The PAT belongs to your personal GitHub account. No organization or repository access is needed — the app only reads your profile to display your name and avatar.
 
 ## Repository Structure
 

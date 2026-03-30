@@ -56,12 +56,15 @@
                             <strong class="text-warning">Option 3: Personal Access Token (PAT)</strong>
                             <p class="small text-muted mb-0">Quickest setup. Generate at:</p>
                             <a href="https://github.com/settings/tokens?type=beta" target="_blank" class="small">github.com/settings/tokens</a>
-                            <div class="small mt-1"><strong>Required permissions (fine-grained):</strong></div>
+                            <div class="small mt-1"><strong>Token owner:</strong> Your personal GitHub account (not an organization). No repo access needed.</div>
+                            <div class="small mt-1"><strong>Fine-grained token settings:</strong></div>
                             <ul class="small text-muted mb-0 ps-3">
+                                <li>Resource owner: <strong>yourself</strong> (your personal account)</li>
+                                <li>Repository access: <strong>No repositories</strong> (none required)</li>
                                 <li>Account permissions → Profile: <strong>Read-only</strong></li>
                                 <li>Account permissions → Email addresses: <strong>Read-only</strong> (optional)</li>
                             </ul>
-                            <div class="small mt-1"><strong>Required scopes (classic):</strong></div>
+                            <div class="small mt-1"><strong>Classic token scopes:</strong></div>
                             <ul class="small text-muted mb-0 ps-3">
                                 <li><code>read:user</code> and <code>user:email</code></li>
                             </ul>
