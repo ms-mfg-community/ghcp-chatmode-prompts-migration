@@ -58,7 +58,9 @@ The web wizard supports three authentication methods. Choose whichever fits your
    ```
 5. Restart the app — the "Sign in with GitHub" button will appear
 
-**Permissions**: OAuth Apps don't have granular permissions at registration. The app requests `read:user` and `user:email` scopes at login time.
+**Scopes requested at login**: `read:user`, `user:email`
+
+> **Note**: OAuth Apps don't have granular permissions at registration — scopes are requested at login time. The user must also have a GitHub Copilot subscription. For full repo features (PRs, issues, code push), the user's Copilot subscription and the Copilot CLI handle those operations locally — no additional OAuth scopes needed.
 
 ### Option 2: GitHub App (recommended for enterprise)
 
@@ -71,8 +73,29 @@ The web wizard supports three authentication methods. Choose whichever fits your
    | Callback URL | `https://localhost:7292/signin-github` |
    | ✅ Request user authorization (OAuth) | Enabled |
 3. **Required permissions**:
-   - Account permissions → **Email addresses**: Read-only
-   - Account permissions → **Profile**: Read-only (implicit)
+
+   #### Minimum (login + Copilot chat only)
+
+   | Type | Permission | Access |
+   |------|-----------|--------|
+   | Account | Email addresses | Read-only |
+   | Account | Profile | Read-only (implicit) |
+   | Account | Copilot Chat | Read-only |
+   | Account | Copilot Requests | Read and write |
+
+   #### Recommended (full features — PRs, issues, branches)
+
+   | Type | Permission | Access | Why |
+   |------|-----------|--------|-----|
+   | Repository | Contents | Read and write | Read source code, push migrated code |
+   | Repository | Pull requests | Read and write | Create PRs for migration changes |
+   | Repository | Issues | Read and write | Create tracking issues |
+   | Repository | Metadata | Read-only | Required with any repo access |
+   | Repository | Workflows | Read and write | Create CI/CD pipeline files |
+   | Account | Email addresses | Read-only | User profile |
+   | Account | Copilot Chat | Read-only | Copilot SDK chat completions |
+   | Account | Copilot Requests | Read and write | Copilot SDK API requests |
+
 4. Copy Client ID and Client Secret, configure the same way as Option 1
 
 ### Option 3: Personal Access Token (quickest for individual use)
