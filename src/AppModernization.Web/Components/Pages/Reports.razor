@@ -1,11 +1,18 @@
 @page "/reports"
 @rendermode InteractiveServer
+@using System.IO
 @inject IWebHostEnvironment Env
+@inject Services.MigrationStateService StateService
 
 <PageTitle>Reports — App Modernization</PageTitle>
 
 <div class="container-fluid py-4">
-    <h2 class="mb-4">📊 Reports</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">📊 Reports</h2>
+        <button class="btn btn-sm btn-outline-primary" @onclick="RefreshReports">
+            🔄 Refresh
+        </button>
+    </div>
     
     <div class="mb-3">
         <input type="text" class="form-control" placeholder="Search reports..." @bind="_searchFilter" @bind:event="oninput" />
@@ -16,11 +23,14 @@
         <div class="list-group">
             @foreach (var report in FilteredReports)
             {
-                <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(_selectedReport == report.Path ? "active" : "")"
-                        @onclick="() => SelectReport(report.Path)">
+                <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(_selectedReport == report.FilePath ? "active" : "")"
+                        @onclick="() => SelectReport(report.FilePath)">
                     <div>
                         <strong>@report.Name</strong>
-                        <br /><small class="@(_selectedReport == report.Path ? "text-white-50" : "text-muted")">@report.LastModified.ToString("MMM d, yyyy h:mm tt") — @FormatSize(report.Size)</small>
+                        <br />
+                        <small class="@(_selectedReport == report.FilePath ? "text-white-50" : "text-muted")">
+                            @report.Location · @report.LastModified.ToLocalTime().ToString("MMM d, yyyy h:mm tt") · @FormatSize(report.Size)
+                        </small>
                     </div>
                     <span class="badge bg-primary rounded-pill">MD</span>
                 </button>
@@ -31,7 +41,7 @@
         {
             <div class="mt-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h5>@Path.GetFileName(_selectedReport)</h5>
+                    <h5>@(System.IO.Path.GetFileName(_selectedReport))</h5>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="() => _selectedReport = null">Close</button>
                 </div>
                 <AppModernization.Web.Components.Reports.ReportViewer FilePath="@_selectedReport" />
@@ -58,33 +68,52 @@
             ? _reports
             : _reports.Where(r => r.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
 
-    protected override void OnInitialized()
+    protected override void OnInitialized() => RefreshReports();
+
+    private void RefreshReports()
     {
-        var reportsPath = Path.Combine(Env.ContentRootPath, "..", "..", "reports");
-        if (Directory.Exists(reportsPath))
+        var reportDirs = new List<(string DirPath, string Label)>();
+
+        // 1. Repo-level reports directory
+        var repoReportsPath = System.IO.Path.GetFullPath(
+            System.IO.Path.Combine(Env.ContentRootPath, "..", "..", "reports"));
+        if (Directory.Exists(repoReportsPath))
+            reportDirs.Add((repoReportsPath, "repo"));
+
+        // 2. Source project's reports directory (where the Copilot agent writes)
+        var sourcePath = StateService.CurrentProject?.SourcePath;
+        if (!string.IsNullOrWhiteSpace(sourcePath))
         {
-            _reports = Directory.GetFiles(reportsPath, "*.md")
-                .Select(f => new FileInfo(f))
-                .Select(fi => new ReportFile { Name = fi.Name, Path = fi.FullName, LastModified = fi.LastWriteTimeUtc, Size = fi.Length })
-                .OrderByDescending(r => r.LastModified)
-                .ToList();
+            var sourceReportsPath = System.IO.Path.Combine(sourcePath, "reports");
+            if (Directory.Exists(sourceReportsPath))
+                reportDirs.Add((sourceReportsPath, "project"));
         }
+
+        _reports = reportDirs
+            .SelectMany(dir => Directory.GetFiles(dir.DirPath, "*.md")
+                .Select(f => new FileInfo(f))
+                .Select(fi => new ReportFile
+                {
+                    Name = fi.Name,
+                    FilePath = fi.FullName,
+                    LastModified = fi.LastWriteTimeUtc,
+                    Size = fi.Length,
+                    Location = dir.Label
+                }))
+            .DistinctBy(r => r.Name)
+            .OrderByDescending(r => r.LastModified)
+            .ToList();
+
+        _selectedReport = null;
+        StateHasChanged();
     }
 
     private void SelectReport(string path) => _selectedReport = _selectedReport == path ? null : path;
 
     private static string FormatSize(long bytes)
     {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1048576) return $"{bytes / 1024.0:F1} KB";
-        return $"{bytes / 1048576.0:F1} MB";
-    }
-
-    private class ReportFile
-    {
-        public string Name { get; set; } = "";
-        public string Path { get; set; } = "";
-        public DateTime LastModified { get; set; }
-        public long Size { get; set; }
+        if (bytes >= 1048576) return $"{bytes / 1048576.0:F1} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
     }
 }

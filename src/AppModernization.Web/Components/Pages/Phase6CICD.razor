@@ -9,7 +9,7 @@
 
 @if (_phase is not null)
 {
-    <PhasePage Phase="_phase">
+    <PhasePage Phase="_phase" AutoPrompt="@_autoPrompt" WorkingDirectory="@_workingDirectory">
         <PhaseContent>
             <div class="mb-4">
                 <h5>⚙️ CI/CD Setup</h5>
@@ -90,6 +90,8 @@ else
 
 @code {
     private PhaseInfo? _phase;
+    private string? _autoPrompt;
+    private string? _workingDirectory;
     private string _pipelinePlatform = "GitHub Actions";
 
     protected override void OnInitialized()
@@ -98,13 +100,28 @@ else
             StateService.InitializeProject("New Migration Project");
 
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase6-cicd");
+        _workingDirectory = StateService.CurrentProject?.SourcePath;
+
+        if (_phase?.Status == PhaseStatus.InProgress)
+        {
+            BuildAutoPrompt();
+        }
     }
 
     private void StartPhase()
     {
         if (_phase is null) return;
         StateService.StartPhase(_phase.Id);
+        BuildAutoPrompt();
         StateHasChanged();
+    }
+
+    private void BuildAutoPrompt()
+    {
+        _autoPrompt = "Set up CI/CD pipelines for the migrated application.\n" +
+            "Read the deployment and infrastructure reports for context.\n" +
+            "Generate GitHub Actions workflow files in .github/workflows/.\n" +
+            "Include CI, CD, infrastructure deployment, and security scanning stages.";
     }
 
     private void SkipPhase()

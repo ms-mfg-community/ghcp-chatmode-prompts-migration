@@ -9,7 +9,7 @@
 
 @if (_phase is not null)
 {
-    <PhasePage Phase="_phase">
+    <PhasePage Phase="_phase" AutoPrompt="@_autoPrompt" WorkingDirectory="@_workingDirectory">
         <PhaseContent>
             <div class="mb-4">
                 <h5>🔬 Project Assessment</h5>
@@ -84,6 +84,8 @@ else
 
 @code {
     private PhaseInfo? _phase;
+    private string? _autoPrompt;
+    private string? _workingDirectory;
 
     protected override void OnInitialized()
     {
@@ -91,13 +93,41 @@ else
             StateService.InitializeProject("New Migration Project");
 
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase2-assess");
+        _workingDirectory = StateService.CurrentProject?.SourcePath;
+
+        if (_phase?.Status == PhaseStatus.InProgress)
+        {
+            BuildAutoPrompt();
+        }
     }
 
     private void StartPhase()
     {
         if (_phase is null) return;
         StateService.StartPhase(_phase.Id);
+        BuildAutoPrompt();
         StateHasChanged();
+    }
+
+    private void BuildAutoPrompt()
+    {
+        var sourcePath = StateService.CurrentProject?.SourcePath;
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            _autoPrompt = $"Perform a comprehensive assessment of the application at: {sourcePath}\n" +
+                "Read the planning reports in reports/ for context.\n" +
+                "Analyze the application structure, dependencies, and architecture.\n" +
+                "Generate reports/Application-Assessment-Report.md with detailed findings.\n" +
+                "Include risk assessment and migration effort estimates.";
+        }
+        else
+        {
+            _autoPrompt = "Perform a comprehensive assessment of the application.\n" +
+                "Read the planning reports in reports/ for context.\n" +
+                "Analyze the application structure, dependencies, and architecture.\n" +
+                "Generate reports/Application-Assessment-Report.md with detailed findings.\n" +
+                "Include risk assessment and migration effort estimates.";
+        }
     }
 
     private void SkipPhase()

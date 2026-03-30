@@ -9,7 +9,7 @@
 
 @if (_phase is not null)
 {
-    <PhasePage Phase="_phase">
+    <PhasePage Phase="_phase" AutoPrompt="@_autoPrompt" WorkingDirectory="@_workingDirectory">
         <PhaseContent>
             <div class="mb-4">
                 <h5>📐 Migration Planning</h5>
@@ -113,6 +113,8 @@ else
 
 @code {
     private PhaseInfo? _phase;
+    private string? _autoPrompt;
+    private string? _workingDirectory;
     private bool _saved;
 
     protected override void OnInitialized()
@@ -121,6 +123,12 @@ else
             StateService.InitializeProject("New Migration Project");
 
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase1-plan");
+        _workingDirectory = StateService.CurrentProject?.SourcePath;
+
+        if (_phase?.Status == PhaseStatus.InProgress)
+        {
+            BuildAutoPrompt();
+        }
     }
 
     private void SaveConfiguration()
@@ -133,7 +141,27 @@ else
     {
         if (_phase is null) return;
         StateService.StartPhase(_phase.Id);
+        BuildAutoPrompt();
         StateHasChanged();
+    }
+
+    private void BuildAutoPrompt()
+    {
+        var sourcePath = StateService.CurrentProject?.SourcePath;
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            _autoPrompt = $"Help me plan the migration for the application at: {sourcePath}\n" +
+                "Review any existing Phase 0 discovery reports in the reports/ directory.\n" +
+                "I need to decide on: hosting platform, IaC type, database, and target framework.\n" +
+                "Guide me through these decisions.";
+        }
+        else
+        {
+            _autoPrompt = "Help me plan the migration for the application.\n" +
+                "Review any existing Phase 0 discovery reports in the reports/ directory.\n" +
+                "I need to decide on: hosting platform, IaC type, database, and target framework.\n" +
+                "Guide me through these decisions.";
+        }
     }
 
     private void SkipPhase()

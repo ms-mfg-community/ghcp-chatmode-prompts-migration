@@ -9,7 +9,7 @@
 
 @if (_phase is not null)
 {
-    <PhasePage Phase="_phase">
+    <PhasePage Phase="_phase" AutoPrompt="@_autoPrompt" WorkingDirectory="@_workingDirectory">
         <PhaseContent>
             <div class="mb-4">
                 <h5>🔄 Code Migration</h5>
@@ -77,6 +77,8 @@ else
 
 @code {
     private PhaseInfo? _phase;
+    private string? _autoPrompt;
+    private string? _workingDirectory;
 
     protected override void OnInitialized()
     {
@@ -84,13 +86,39 @@ else
             StateService.InitializeProject("New Migration Project");
 
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase3-migrate");
+        _workingDirectory = StateService.CurrentProject?.SourcePath;
+
+        if (_phase?.Status == PhaseStatus.InProgress)
+        {
+            BuildAutoPrompt();
+        }
     }
 
     private void StartPhase()
     {
         if (_phase is null) return;
         StateService.StartPhase(_phase.Id);
+        BuildAutoPrompt();
         StateHasChanged();
+    }
+
+    private void BuildAutoPrompt()
+    {
+        var sourcePath = StateService.CurrentProject?.SourcePath;
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            _autoPrompt = $"Begin code migration for the application at: {sourcePath}\n" +
+                "Read the assessment report at reports/Application-Assessment-Report.md for context.\n" +
+                "Create a backup, then start migrating the code to the target framework.\n" +
+                "Make small, testable, incremental changes.";
+        }
+        else
+        {
+            _autoPrompt = "Begin code migration for the application.\n" +
+                "Read the assessment report at reports/Application-Assessment-Report.md for context.\n" +
+                "Create a backup, then start migrating the code to the target framework.\n" +
+                "Make small, testable, incremental changes.";
+        }
     }
 
     private void SkipPhase()
