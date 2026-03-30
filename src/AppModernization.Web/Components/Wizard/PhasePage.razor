@@ -32,7 +32,7 @@
 
     @* Right panel: chat *@
     <div class="split-layout-right d-flex flex-column" style="width: 40%; min-width: 350px;">
-        <AppModernization.Web.Components.Chat.ChatPanel Phase="Phase" />
+        <AppModernization.Web.Components.Chat.ChatPanel Phase="Phase" AutoPrompt="@AutoPrompt" />
     </div>
 </div>
 
@@ -45,6 +45,9 @@
 
     [Parameter]
     public RenderFragment? PhaseActions { get; set; }
+
+    [Parameter]
+    public string? AutoPrompt { get; set; }
 
     private string GetStatusBadgeClass() => Phase.Status switch
     {

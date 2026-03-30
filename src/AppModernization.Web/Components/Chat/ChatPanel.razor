@@ -52,7 +52,9 @@
             <textarea class="form-control"
                       placeholder="@(_currentSessionId is null ? "Initializing..." : "Type your message...")"
                       @bind="_userInput"
+                      @bind:event="oninput"
                       @onkeydown="HandleKeyDown"
+                      @onkeydown:preventDefault="_shouldPreventDefault"
                       disabled="@(_currentSessionId is null || _isLoading)"
                       rows="1"
                       style="resize: none; min-height: 38px; max-height: 120px;" />
@@ -70,10 +72,12 @@
 @code {
     [Parameter] public PhaseInfo? Phase { get; set; }
     [Parameter] public string? SessionId { get; set; }
+    [Parameter] public string? AutoPrompt { get; set; }
 
     private readonly List<ChatMessage> _messages = new();
     private string _userInput = "";
     private bool _isLoading;
+    private bool _shouldPreventDefault;
     private string? _currentSessionId;
     private string? _sessionError;
     private ElementReference _messageContainer;
@@ -108,6 +112,13 @@
                 _currentSessionId = await CopilotService.CreateSessionForPhaseAsync(Phase);
             }
             StateHasChanged();
+
+            // Auto-send initial prompt if provided
+            if (!string.IsNullOrWhiteSpace(AutoPrompt) && _currentSessionId is not null)
+            {
+                _userInput = AutoPrompt;
+                await SendMessageAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -121,7 +132,12 @@
     {
         if (e.Key == "Enter" && !e.ShiftKey)
         {
+            _shouldPreventDefault = true;
             await SendMessageAsync();
+        }
+        else
+        {
+            _shouldPreventDefault = false;
         }
     }
 

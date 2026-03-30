@@ -5,13 +5,15 @@
 /* --- Chat Panel --- */
 .chat-panel {
     height: 100%;
-    min-height: 500px;
-    max-height: 100vh;
+    display: flex;
+    flex-direction: column;
     background-color: #fff;
+    overflow: hidden;
 }
 
 .chat-panel-messages {
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    min-height: 0;
     overflow-y: auto;
     scroll-behavior: smooth;
 }
@@ -164,6 +166,9 @@
 
 .split-layout-right {
     background-color: #fafbfc;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 /* --- Report Viewer --- */
