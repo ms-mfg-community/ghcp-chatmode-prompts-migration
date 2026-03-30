@@ -117,10 +117,10 @@ else
     private string? _workingDirectory;
     private bool _saved;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         if (StateService.CurrentProject is null)
-            StateService.InitializeProject("New Migration Project");
+            await StateService.InitializeProjectAsync("New Migration Project");
 
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase1-plan");
         _workingDirectory = StateService.CurrentProject?.SourcePath;
@@ -137,10 +137,10 @@ else
         StateHasChanged();
     }
 
-    private void StartPhase()
+    private async Task StartPhase()
     {
         if (_phase is null) return;
-        StateService.StartPhase(_phase.Id);
+        await StateService.StartPhaseAsync(_phase.Id);
         BuildAutoPrompt();
         StateHasChanged();
     }
@@ -164,17 +164,17 @@ else
         }
     }
 
-    private void SkipPhase()
+    private async Task SkipPhase()
     {
         if (_phase is null) return;
-        StateService.SkipPhase(_phase.Id);
+        await StateService.SkipPhaseAsync(_phase.Id);
         Navigation.NavigateTo("/phase2/assess");
     }
 
-    private void CompletePhase()
+    private async Task CompletePhase()
     {
         if (_phase is null) return;
-        StateService.CompletePhase(_phase.Id);
+        await StateService.CompletePhaseAsync(_phase.Id);
         Navigation.NavigateTo("/phase2/assess");
     }
 }

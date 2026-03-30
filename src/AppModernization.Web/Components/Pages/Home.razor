@@ -115,21 +115,24 @@
     private string _sourcePath = "";
     private bool _usePhase0 = true;
 
-    private void StartProject()
+    private async Task StartProject()
     {
         if (string.IsNullOrWhiteSpace(_projectName)) return;
 
-        var project = StateService.InitializeProject(_projectName.Trim());
+        var project = await StateService.InitializeProjectAsync(_projectName.Trim());
         project.SourcePath = string.IsNullOrWhiteSpace(_sourcePath) ? null : _sourcePath.Trim();
         project.UsePhase0 = _usePhase0;
 
         if (!_usePhase0)
         {
             // Skip Phase 0 sub-phases
-            StateService.SkipPhase("phase0-discover");
-            StateService.SkipPhase("phase0-specify");
-            StateService.SkipPhase("phase0-validate");
+            await StateService.SkipPhaseAsync("phase0-discover");
+            await StateService.SkipPhaseAsync("phase0-specify");
+            await StateService.SkipPhaseAsync("phase0-validate");
         }
+
+        // Save again to persist SourcePath and UsePhase0 set after initialization
+        await StateService.SaveCurrentProjectAsync();
 
         Navigation.NavigateTo(_usePhase0 ? "/phase0/discover" : "/dashboard");
     }

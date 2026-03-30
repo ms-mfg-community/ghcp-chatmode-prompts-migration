@@ -1,16 +1,29 @@
 using AppModernization.Web.Models;
+using Microsoft.Extensions.Logging;
 
 namespace AppModernization.Web.Services;
 
 /// <summary>
 /// Scoped service that manages the current migration project and its phases.
 /// Registered as Scoped (per-circuit in Blazor Server).
+/// Auto-saves to disk via ProjectPersistenceService after each mutation.
 /// </summary>
 public class MigrationStateService
 {
+    private readonly ProjectPersistenceService _persistenceService;
+    private readonly ILogger<MigrationStateService> _logger;
+
+    public MigrationStateService(ProjectPersistenceService persistenceService, ILogger<MigrationStateService> logger)
+    {
+        _persistenceService = persistenceService;
+        _logger = logger;
+    }
+
     public MigrationProject? CurrentProject { get; private set; }
 
-    public MigrationProject InitializeProject(string name)
+    public DateTime? LastSavedAt { get; private set; }
+
+    public async Task<MigrationProject> InitializeProjectAsync(string name)
     {
         var project = new MigrationProject
         {
@@ -18,6 +31,7 @@ public class MigrationStateService
             Phases = BuildPhaseDefinitions()
         };
         CurrentProject = project;
+        await SaveAsync();
         return project;
     }
 
@@ -35,32 +49,55 @@ public class MigrationStateService
             ?? CurrentProject.Phases.FirstOrDefault(p => p.Status == PhaseStatus.NotStarted);
     }
 
-    public void StartPhase(string phaseId)
+    public async Task StartPhaseAsync(string phaseId)
     {
         var phase = CurrentProject?.Phases.FirstOrDefault(p => p.Id == phaseId);
         if (phase is null || phase.Status != PhaseStatus.NotStarted) return;
 
         phase.Status = PhaseStatus.InProgress;
         phase.StartedAt = DateTime.UtcNow;
+        await SaveAsync();
     }
 
-    public void CompletePhase(string phaseId)
+    public async Task CompletePhaseAsync(string phaseId)
     {
         var phase = CurrentProject?.Phases.FirstOrDefault(p => p.Id == phaseId);
         if (phase is null) return;
 
         phase.Status = PhaseStatus.Completed;
         phase.CompletedAt = DateTime.UtcNow;
+        await SaveAsync();
     }
 
-    public void SkipPhase(string phaseId)
+    public async Task SkipPhaseAsync(string phaseId)
     {
         var phase = CurrentProject?.Phases.FirstOrDefault(p => p.Id == phaseId);
         if (phase is null) return;
 
         phase.Status = PhaseStatus.Skipped;
         phase.CompletedAt = DateTime.UtcNow;
+        await SaveAsync();
     }
+
+    private async Task SaveAsync()
+    {
+        if (CurrentProject is null) return;
+        try
+        {
+            await _persistenceService.SaveProjectAsync(CurrentProject);
+            LastSavedAt = DateTime.UtcNow;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save project {ProjectId}", CurrentProject.Id);
+        }
+    }
+
+    /// <summary>
+    /// Explicitly saves the current project to disk.
+    /// Use after modifying project properties directly (e.g., SourcePath, UsePhase0).
+    /// </summary>
+    public Task SaveCurrentProjectAsync() => SaveAsync();
 
     public double GetProgress()
     {

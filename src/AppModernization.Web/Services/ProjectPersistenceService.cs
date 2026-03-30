@@ -60,6 +60,7 @@ public class ProjectPersistenceService
                         Name = project.Name,
                         CreatedAt = project.CreatedAt,
                         Progress = progress,
+                        SourcePath = project.SourcePath,
                         CurrentPhase = project.Phases.FirstOrDefault(p => p.Status == PhaseStatus.InProgress)?.Name
                                        ?? project.Phases.FirstOrDefault(p => p.Status == PhaseStatus.NotStarted)?.Name
                     });
@@ -96,4 +97,5 @@ public class ProjectSummary
     public DateTime CreatedAt { get; set; }
     public double Progress { get; set; }
     public string? CurrentPhase { get; set; }
+    public string? SourcePath { get; set; }
 }
