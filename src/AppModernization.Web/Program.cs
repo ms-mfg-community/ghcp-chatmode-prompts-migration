@@ -11,36 +11,48 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Authentication: Cookie scheme as default, GitHub OAuth as external provider
-builder.Services.AddAuthentication(options =>
+// Authentication: Cookie scheme as default, GitHub OAuth as external provider (if configured)
+var githubClientId = builder.Configuration["GitHub:ClientId"];
+var githubClientSecret = builder.Configuration["GitHub:ClientSecret"];
+var githubOAuthConfigured = !string.IsNullOrWhiteSpace(githubClientId) && !string.IsNullOrWhiteSpace(githubClientSecret);
+
+var authBuilder = builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = "GitHub";
+    if (githubOAuthConfigured)
+        options.DefaultChallengeScheme = "GitHub";
 })
 .AddCookie(options =>
 {
-    options.LoginPath = "/"; // Don't redirect — we handle auth in the UI
+    options.LoginPath = "/";
     options.Cookie.Name = "AppMod.Auth";
-})
-.AddGitHub("GitHub", options =>
-{
-    // Works for both GitHub OAuth Apps and GitHub Apps (with user authorization)
-    options.ClientId = builder.Configuration["GitHub:ClientId"] ?? "";
-    options.ClientSecret = builder.Configuration["GitHub:ClientSecret"] ?? "";
-    options.Scope.Add("read:user");
-    options.Scope.Add("user:email");
-    options.SaveTokens = true;
-    options.Events.OnCreatingTicket = context =>
-    {
-        var avatarUrl = context.User.GetProperty("avatar_url").GetString();
-        if (!string.IsNullOrEmpty(avatarUrl))
-        {
-            context.Identity?.AddClaim(new Claim("urn:github:avatar", avatarUrl));
-        }
-        context.Identity?.AddClaim(new Claim("urn:github:auth_method", "oauth"));
-        return Task.CompletedTask;
-    };
 });
+
+if (githubOAuthConfigured)
+{
+    authBuilder.AddGitHub("GitHub", options =>
+    {
+        options.ClientId = githubClientId!;
+        options.ClientSecret = githubClientSecret!;
+        options.Scope.Add("read:user");
+        options.Scope.Add("user:email");
+        options.SaveTokens = true;
+        options.Events.OnCreatingTicket = context =>
+        {
+            var avatarUrl = context.User.GetProperty("avatar_url").GetString();
+            if (!string.IsNullOrEmpty(avatarUrl))
+            {
+                context.Identity?.AddClaim(new Claim("urn:github:avatar", avatarUrl));
+            }
+            context.Identity?.AddClaim(new Claim("urn:github:auth_method", "oauth"));
+            return Task.CompletedTask;
+        };
+    });
+}
+else
+{
+    Console.WriteLine("⚠️  GitHub OAuth not configured — only PAT login available. Set GitHub:ClientId and GitHub:ClientSecret to enable OAuth.");
+}
 
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
@@ -82,12 +94,17 @@ app.UseAntiforgery();
 
 // --- Auth endpoints ---
 
-// GitHub OAuth / GitHub App login
+// GitHub OAuth / GitHub App login (only works when OAuth is configured)
 app.MapGet("/auth/login", (string? returnUrl) =>
-    Results.Challenge(new AuthenticationProperties
+{
+    if (!githubOAuthConfigured)
+        return Results.Redirect("/?error=oauth_not_configured");
+
+    return Results.Challenge(new AuthenticationProperties
     {
         RedirectUri = returnUrl ?? "/"
-    }, ["GitHub"]));
+    }, ["GitHub"]);
+});
 
 // PAT-based login — creates a cookie session from a personal access token
 app.MapPost("/auth/pat-login", async (HttpContext ctx) =>
@@ -141,3 +158,6 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+// Expose for WebApplicationFactory in tests
+public partial class Program { }
