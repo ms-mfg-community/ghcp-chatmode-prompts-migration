@@ -60,15 +60,31 @@
                             <div class="small mt-1"><strong>Fine-grained token settings:</strong></div>
                             <ul class="small text-muted mb-0 ps-3">
                                 <li>Resource owner: <strong>yourself</strong> (your personal account)</li>
-                                <li>Repository access: <strong>No repositories</strong> (none required)</li>
-                                <li>Account permissions → Copilot Chat: <strong>Read-only</strong></li>
-                                <li>Account permissions → Copilot Requests: <strong>Read &amp; write</strong></li>
-                                <li>Account permissions → Profile: <strong>Read-only</strong></li>
-                                <li>Account permissions → Email addresses: <strong>Read-only</strong> (optional)</li>
+                                <li>Repository access: see tiers below</li>
+                            </ul>
+                            <div class="small mt-1"><em>Minimum (login + Copilot chat only):</em></div>
+                            <ul class="small text-muted mb-0 ps-3">
+                                <li>Repository access: <strong>No repositories</strong></li>
+                                <li>Account → Copilot Chat: <strong>Read-only</strong></li>
+                                <li>Account → Copilot Requests: <strong>Read &amp; write</strong></li>
+                                <li>Account → Profile: <strong>Read-only</strong></li>
+                            </ul>
+                            <div class="small mt-1"><em>Recommended (full features — PRs, issues, branches):</em></div>
+                            <ul class="small text-muted mb-0 ps-3">
+                                <li>Repository access: <strong>Select repositories</strong> (your migration target repos)</li>
+                                <li>Repo → Contents: <strong>Read &amp; write</strong> (read/push code)</li>
+                                <li>Repo → Pull requests: <strong>Read &amp; write</strong> (create PRs)</li>
+                                <li>Repo → Issues: <strong>Read &amp; write</strong> (create issues)</li>
+                                <li>Repo → Metadata: <strong>Read-only</strong> (required with any repo access)</li>
+                                <li>Repo → Workflows: <strong>Read &amp; write</strong> (create CI/CD workflows)</li>
+                                <li>Account → Copilot Chat: <strong>Read-only</strong></li>
+                                <li>Account → Copilot Requests: <strong>Read &amp; write</strong></li>
+                                <li>Account → Profile: <strong>Read-only</strong></li>
                             </ul>
                             <div class="small mt-1"><strong>Classic token scopes:</strong></div>
                             <ul class="small text-muted mb-0 ps-3">
-                                <li><code>read:user</code>, <code>user:email</code>, <code>copilot</code></li>
+                                <li>Minimum: <code>read:user</code>, <code>copilot</code></li>
+                                <li>Recommended: <code>repo</code>, <code>workflow</code>, <code>read:user</code>, <code>copilot</code></li>
                             </ul>
                             <p class="small text-muted mt-1 mb-0">Paste into the PAT field and click "Go"</p>
                         </div>

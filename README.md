@@ -78,15 +78,44 @@ No server configuration needed — just paste a token in the UI.
 1. Go to [github.com/settings/tokens](https://github.com/settings/tokens?type=beta)
 2. Create a **fine-grained token** with these settings:
    - **Resource owner**: Your personal account (not an organization)
-   - **Repository access**: No repositories (none required)
-   - Account permissions → **Copilot Chat**: Read-only
-   - Account permissions → **Copilot Requests**: Read and write
-   - Account permissions → **Profile**: Read-only
-   - Account permissions → **Email addresses**: Read-only (optional)
-3. Or create a **classic token** with scopes: `read:user`, `user:email`, `copilot`
+   - **Token name**: `App Modernization Wizard` (or similar)
+
+#### Minimum permissions (login + Copilot chat only)
+
+No repository access needed — agents work on local files.
+
+| Type | Permission | Access |
+|------|-----------|--------|
+| Repository | (none) | No repositories |
+| Account | Copilot Chat | Read-only |
+| Account | Copilot Requests | Read and write |
+| Account | Profile | Read-only |
+
+#### Recommended permissions (full features — PRs, issues, branches)
+
+Select your migration target repositories for full agent capabilities.
+
+| Type | Permission | Access | Why |
+|------|-----------|--------|-----|
+| Repository | Contents | Read and write | Read source code, push migrated code |
+| Repository | Pull requests | Read and write | Create PRs for migration changes |
+| Repository | Issues | Read and write | Create tracking issues for migration tasks |
+| Repository | Metadata | Read-only | Required when any repo access is granted |
+| Repository | Workflows | Read and write | Create CI/CD pipeline files |
+| Account | Copilot Chat | Read-only | Copilot SDK chat completions |
+| Account | Copilot Requests | Read and write | Copilot SDK API requests |
+| Account | Profile | Read-only | Display name and avatar in the UI |
+
+#### Classic token scopes
+
+| Tier | Scopes |
+|------|--------|
+| Minimum | `read:user`, `copilot` |
+| Recommended | `repo`, `workflow`, `read:user`, `copilot` |
+
 4. Paste the token into the PAT field in the app's top bar and click **Go**
 
-> **Note**: The PAT belongs to your personal GitHub account. No organization or repository access is needed. The Copilot permissions are required so the SDK can make Copilot API calls on your behalf. Classic PATs (`ghp_` prefix) are **not supported** by the Copilot SDK — use fine-grained (`github_pat_` prefix) instead.
+> **Note**: The PAT belongs to your personal GitHub account. Classic PATs (`ghp_` prefix) are **not supported** by the Copilot SDK — use fine-grained (`github_pat_` prefix) instead.
 
 ## Repository Structure
 
