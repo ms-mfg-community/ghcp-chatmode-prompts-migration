@@ -45,6 +45,13 @@ Through agent-guided workflows, developers can efficiently transform legacy appl
 │   │
 │   ├── get-status.agent.md                    # Status tracking agent
 │   └── playwright-testing.agent.md            # E2E testing agent
+│
+├── skills/                                    # Reusable agent skills
+│   ├── dotnet-legacy-analysis/SKILL.md        # .NET Framework analysis patterns
+│   ├── java-legacy-analysis/SKILL.md          # Java EE/legacy analysis patterns
+│   ├── sql-sp-analysis/SKILL.md               # SQL Server stored procedure analysis
+│   ├── dotnet-migration-patterns/SKILL.md     # .NET Framework → .NET 8+ patterns
+│   └── azure-hosting-selection/SKILL.md       # Azure hosting decision framework
 
 templates/
 └── field-specification-template.md            # Standardized field spec template
@@ -100,6 +107,30 @@ Use Phase 0 when the legacy system is undocumented, original developers are unav
 5. Start directly with `@phase1-plan-migration` to begin planning
 6. Use `@get-status` at any time to check migration progress
 7. Follow the guided workflow through each phase
+
+## Do I Need Phase 0? (Decision Guide)
+
+```
+Do you understand what the application does?
+├── YES, team built it or actively maintains it
+│   └── SKIP Phase 0 → Start at Phase 1
+├── PARTIALLY — we know the app but inherited undocumented stored procedures
+│   └── PARTIAL Phase 0 → Run @phase0-discover on the database layer only
+├── NO — original devs are gone, docs are missing
+│   └── FULL Phase 0 → Run all three Phase 0 agents
+└── UNSURE — it's complex and we want AI to help map it
+    └── FULL Phase 0 → Better to over-discover than miss critical logic
+```
+
+| Scenario | Phase 0? | Start At |
+|----------|----------|----------|
+| .NET 4.8 → .NET 10, team knows the app well | **Skip** | `@phase1-plan-migration` |
+| .NET 4.8 → .NET 10, inherited app, no docs | **Full** | `@phase0-discover` |
+| WinForms + SQL SPs, devs left the org | **Full** | `@phase0-discover` |
+| ASP.NET WebForms, partial docs, 200 SPs | **Partial** | `@phase0-discover` (focus on SPs) |
+| Java EE app, team has some knowledge | **Partial** | `@phase0-discover` (validate understanding) |
+| WCF services with complex business logic | **Full** | `@phase0-discover` |
+| Well-documented app, just need Azure infra | **Skip** | `@phase1-plan-migration` |
 
 ## Phase 0: Legacy Discovery Workflow
 
@@ -186,6 +217,41 @@ Update these files at any phase to fit your requirements.
 - **CI/CD Integration** — GitHub Actions or Azure DevOps pipelines
 - **Status Tracking** — Progress monitoring with quality metrics
 - **E2E Testing** — Playwright test scaffolding for migrated applications
+
+## Agent Skills
+
+Skills are reusable knowledge modules (`.github/skills/<name>/SKILL.md`) that are auto-discovered by agents when contextually relevant. They provide specialized patterns and guidance without bloating the agent prompts.
+
+### Included Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `dotnet-legacy-analysis` | Analysis patterns for WinForms, WebForms, MVC, WCF — type detection, event handler mapping, data access identification |
+| `java-legacy-analysis` | Analysis patterns for Java EE, Servlets, JSP, EJB, Spring — type detection, DI patterns, migration targets |
+| `sql-sp-analysis` | Stored procedure business logic extraction — classification, call chain tracing, migration strategy per SP |
+| `dotnet-migration-patterns` | Concrete code transformation patterns for .NET Framework → .NET 8+ (config, auth, DI, data access, WCF→REST) |
+| `azure-hosting-selection` | Decision framework for App Service vs Container Apps vs AKS with flowchart and cost comparison |
+
+### Recommended Skills from awesome-copilot
+
+The [github/awesome-copilot](https://github.com/github/awesome-copilot) community repository provides additional skills that complement this workflow. Copy the relevant `skills/<name>/` directories into your project's `.github/skills/`:
+
+| Skill | Use Case |
+|-------|----------|
+| `dotnet-upgrade` | .NET framework upgrade automation |
+| `dotnet-best-practices` | Modern .NET coding standards |
+| `ef-core` | Entity Framework Core patterns |
+| `containerize-aspnet-framework` | Containerize legacy ASP.NET Framework apps |
+| `containerize-aspnetcore` | Containerize modern ASP.NET Core apps |
+| `sql-code-review` | SQL code quality review |
+| `sql-optimization` | SQL performance optimization |
+| `security-review` | Security vulnerability scanning |
+| `playwright-generate-test` | Generate Playwright E2E tests |
+| `create-specification` | Create technical specifications |
+| `java-springboot` | Spring Boot patterns and best practices |
+| `multi-stage-dockerfile` | Multi-stage Docker build patterns |
+| `webapp-testing` | Web application testing strategies |
+| `update-avm-modules-in-bicep` | Azure Verified Modules for Bicep |
 
 ## Contributing
 
