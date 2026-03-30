@@ -37,7 +37,11 @@ The web wizard supports three authentication methods. Choose whichever fits your
 
 ### Option 1: GitHub OAuth App (recommended for teams)
 
-1. Go to [github.com/settings/developers](https://github.com/settings/developers) → **New OAuth App**
+1. Go to **one of**:
+   - **Personal account**: [github.com/settings/developers](https://github.com/settings/developers) → **New OAuth App**
+   - **Organization**: `github.com/organizations/{your-org}/settings/applications` → **Register an application**
+   
+   > **Tip**: Org-owned apps are recommended for teams — ownership isn't tied to one person's account.
 2. Fill in:
    | Field | Value |
    |-------|-------|

@@ -157,24 +157,56 @@ if (-not $SkipOAuth) {
     Write-Host "  You need a GitHub OAuth App (one-time setup)." -ForegroundColor White
     Write-Host "  This lets users click 'Sign in with GitHub' instead of managing PATs." -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  ┌─────────────────────────────────────────────────────┐" -ForegroundColor DarkGray
-    Write-Host "  │  1. Open: https://github.com/settings/developers   │" -ForegroundColor DarkGray
-    Write-Host "  │  2. Click 'New OAuth App'                          │" -ForegroundColor DarkGray
-    Write-Host "  │  3. Fill in:                                       │" -ForegroundColor DarkGray
-    Write-Host "  │     App name:     App Modernization Wizard         │" -ForegroundColor DarkGray
-    Write-Host "  │     Homepage:     https://localhost:7292            │" -ForegroundColor DarkGray
-    Write-Host "  │     Callback URL: https://localhost:7292/signin-github │" -ForegroundColor DarkGray
-    Write-Host "  │  4. Click 'Register application'                   │" -ForegroundColor DarkGray
-    Write-Host "  │  5. Copy the Client ID                             │" -ForegroundColor DarkGray
-    Write-Host "  │  6. Click 'Generate a new client secret'           │" -ForegroundColor DarkGray
-    Write-Host "  │  7. Copy the Client Secret                         │" -ForegroundColor DarkGray
-    Write-Host "  └─────────────────────────────────────────────────────┘" -ForegroundColor DarkGray
+
+    # Ask who should own the OAuth App
+    Write-Host "  Who should own the OAuth App?" -ForegroundColor White
+    Write-Host ""
+    Write-Host "    [1] Personal account  — quick setup for individual use" -ForegroundColor Gray
+    Write-Host "    [2] Organization      — recommended for teams (not tied to one person)" -ForegroundColor Gray
+    Write-Host ""
+    $ownerChoice = Read-Host "  Choose (1 or 2)"
+
+    $settingsUrl = ""
+    $ownerLabel = ""
+
+    if ($ownerChoice -eq '2') {
+        $orgName = Read-Host "  Enter the GitHub organization name (e.g., ms-mfg-community)"
+        if ([string]::IsNullOrWhiteSpace($orgName)) {
+            Write-Warn "No org name provided — falling back to personal account"
+            $settingsUrl = "https://github.com/settings/developers"
+            $ownerLabel = "your personal account"
+        } else {
+            $settingsUrl = "https://github.com/organizations/$orgName/settings/applications"
+            $ownerLabel = "the '$orgName' organization"
+        }
+    } else {
+        $settingsUrl = "https://github.com/settings/developers"
+        $ownerLabel = "your personal account"
+    }
+
+    Write-Host ""
+    Write-Host "  Creating the OAuth App under $ownerLabel." -ForegroundColor White
+    Write-Host ""
+    Write-Host "  ┌─────────────────────────────────────────────────────────┐" -ForegroundColor DarkGray
+    Write-Host "  │  1. Open the link below (or let this script open it)   │" -ForegroundColor DarkGray
+    Write-Host "  │  2. Click 'New OAuth App' (or 'Register an application') │" -ForegroundColor DarkGray
+    Write-Host "  │  3. Fill in:                                           │" -ForegroundColor DarkGray
+    Write-Host "  │     App name:     App Modernization Wizard             │" -ForegroundColor DarkGray
+    Write-Host "  │     Homepage:     https://localhost:7292                │" -ForegroundColor DarkGray
+    Write-Host "  │     Callback URL: https://localhost:7292/signin-github  │" -ForegroundColor DarkGray
+    Write-Host "  │  4. Click 'Register application'                       │" -ForegroundColor DarkGray
+    Write-Host "  │  5. Copy the Client ID                                 │" -ForegroundColor DarkGray
+    Write-Host "  │  6. Click 'Generate a new client secret'               │" -ForegroundColor DarkGray
+    Write-Host "  │  7. Copy the Client Secret                             │" -ForegroundColor DarkGray
+    Write-Host "  └─────────────────────────────────────────────────────────┘" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "  URL: $settingsUrl" -ForegroundColor Cyan
     Write-Host ""
 
     # Try to open the browser
-    $openBrowser = Read-Host "  Open GitHub developer settings in your browser? (Y/n)"
+    $openBrowser = Read-Host "  Open this page in your browser? (Y/n)"
     if ($openBrowser -ne 'n') {
-        Start-Process "https://github.com/settings/developers"
+        Start-Process $settingsUrl
     }
 
     Write-Host ""
@@ -189,6 +221,7 @@ if (-not $SkipOAuth) {
         dotnet user-secrets set "GitHub:ClientSecret" $clientSecret | Out-Null
         Pop-Location
         Write-Ok "OAuth credentials saved to user-secrets (not in source code)"
+        Write-Ok "OAuth App owned by $ownerLabel"
     }
 } else {
     Write-Step "4/5" "Skipping OAuth setup (--SkipOAuth or already configured)"

@@ -27,13 +27,14 @@
 
                         <div class="mb-3">
                             <strong class="text-primary">Option 1: GitHub OAuth App</strong>
-                            <p class="small text-muted mb-1">Best for teams. Register at:</p>
-                            <a href="https://github.com/settings/developers" target="_blank" class="small">github.com/settings/developers</a>
+                            <p class="small text-muted mb-1">Best for teams. Can be owned by a <strong>personal account</strong> or an <strong>organization</strong>.</p>
                             <ul class="small text-muted mt-1 mb-0 ps-3">
+                                <li>Personal: <a href="https://github.com/settings/developers" target="_blank">github.com/settings/developers</a></li>
+                                <li>Organization: <code>github.com/organizations/{org}/settings/applications</code></li>
                                 <li>Callback URL: <code>https://localhost:7292/signin-github</code></li>
-                                <li>Add Client ID &amp; Secret via user-secrets or <code>appsettings.json</code></li>
+                                <li>Or use <code>./setup.ps1</code> to automate this setup</li>
                             </ul>
-                            <div class="small mt-1"><strong>Permissions needed:</strong> none (OAuth Apps don't have granular scopes at registration — scopes are requested at login time: <code>read:user</code>, <code>user:email</code>)</div>
+                            <div class="small mt-1"><strong>Tip:</strong> Org-owned apps are recommended for teams — ownership isn't tied to one person's account.</div>
                         </div>
 
                         <div class="mb-3">
