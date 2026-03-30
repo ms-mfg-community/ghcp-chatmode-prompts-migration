@@ -71,12 +71,34 @@ public class CopilotService : IAsyncDisposable
     /// Creates a new CopilotSession for the given migration phase.
     /// The agent prompt is loaded from the .md file and injected as a system message in Append mode.
     /// </summary>
-    public async Task<string> CreateSessionForPhaseAsync(PhaseInfo phase, CancellationToken cancellationToken = default)
+    public async Task<string> CreateSessionForPhaseAsync(PhaseInfo phase, string? workingDirectory = null, CancellationToken cancellationToken = default)
     {
         if (_client is null)
             throw new InvalidOperationException("CopilotClient not initialized. Call InitializeAsync first.");
 
         var agentPrompt = _agentPromptService.GetAgentPrompt(phase.AgentFile);
+
+        // If a working directory is specified, recreate the client with that CWD
+        // so the agent's file operations target the correct codebase
+        if (!string.IsNullOrWhiteSpace(workingDirectory) && Directory.Exists(workingDirectory))
+        {
+            _logger.LogInformation("Setting Copilot working directory to: {Cwd}", workingDirectory);
+            // Stop existing client and restart with new CWD
+            if (_initialized)
+            {
+                try { await _client.StopAsync(); } catch { /* ignore */ }
+                _initialized = false;
+            }
+
+            _client = new CopilotClient(new CopilotClientOptions
+            {
+                AutoStart = true,
+                UseStdio = true,
+                Cwd = workingDirectory
+            });
+            await _client.StartAsync();
+            _initialized = true;
+        }
 
         var session = await _client.CreateSessionAsync(new SessionConfig
         {

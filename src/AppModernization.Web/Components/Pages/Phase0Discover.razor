@@ -9,7 +9,7 @@
 
 @if (_phase is not null)
 {
-    <PhasePage Phase="_phase" AutoPrompt="@_autoPrompt">
+    <PhasePage Phase="_phase" AutoPrompt="@_autoPrompt" WorkingDirectory="@_workingDirectory">
         <PhaseContent>
             <div class="mb-4">
                 <h5>🔍 Discovery Phase</h5>
@@ -83,35 +83,53 @@ else
 @code {
     private PhaseInfo? _phase;
     private string? _autoPrompt;
+    private string? _workingDirectory;
 
     protected override void OnInitialized()
     {
         if (StateService.CurrentProject is null)
         {
-            // Auto-initialize for development convenience
             StateService.InitializeProject("New Migration Project");
         }
 
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase0-discover");
+        _workingDirectory = StateService.CurrentProject?.SourcePath;
+
+        // If phase is already in progress (user navigated back), auto-prompt on load
+        if (_phase?.Status == PhaseStatus.InProgress)
+        {
+            BuildAutoPrompt();
+        }
     }
 
     private void StartPhase()
     {
         if (_phase is null) return;
         StateService.StartPhase(_phase.Id);
+        BuildAutoPrompt();
+        StateHasChanged();
+    }
 
-        // Build auto-prompt with source path context
+    private void BuildAutoPrompt()
+    {
         var sourcePath = StateService.CurrentProject?.SourcePath;
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
-            _autoPrompt = $"Analyze the legacy application at: {sourcePath}\n\nPerform a full discovery — scan the codebase, identify the application type, map the architecture, extract business rules, and document all findings.";
+            _autoPrompt = $"Analyze the legacy application at: {sourcePath}\n\n" +
+                "Perform a full discovery:\n" +
+                "1. Scan the codebase and identify all projects, forms, classes, and SQL scripts\n" +
+                "2. Determine the application type (.NET Framework version, UI technology)\n" +
+                "3. Map the architecture and component relationships\n" +
+                "4. Extract business rules from code and stored procedures\n" +
+                "5. Document all findings in reports/Legacy-Discovery-Report.md\n" +
+                "6. Document extracted business requirements in reports/Business-Requirements.md\n" +
+                "7. Document process flows in reports/Process-Maps.md\n\n" +
+                "Generate all reports as markdown files in the reports/ directory.";
         }
         else
         {
-            _autoPrompt = "Start the discovery process. Scan the current workspace, identify the application type and architecture, extract business rules, and document all findings.";
+            _autoPrompt = "Start the discovery process. Scan the current workspace, identify the application type and architecture, extract business rules, and generate all discovery reports in the reports/ directory.";
         }
-
-        StateHasChanged();
     }
 
     private void SkipPhase()

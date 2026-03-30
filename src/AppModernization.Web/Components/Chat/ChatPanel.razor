@@ -73,6 +73,7 @@
     [Parameter] public PhaseInfo? Phase { get; set; }
     [Parameter] public string? SessionId { get; set; }
     [Parameter] public string? AutoPrompt { get; set; }
+    [Parameter] public string? WorkingDirectory { get; set; }
 
     private readonly List<ChatMessage> _messages = new();
     private string _userInput = "";
@@ -109,12 +110,13 @@
             else if (Phase is not null)
             {
                 await CopilotService.InitializeAsync();
-                _currentSessionId = await CopilotService.CreateSessionForPhaseAsync(Phase);
+                _currentSessionId = await CopilotService.CreateSessionForPhaseAsync(
+                    Phase, WorkingDirectory);
             }
             StateHasChanged();
 
-            // Auto-send initial prompt if provided
-            if (!string.IsNullOrWhiteSpace(AutoPrompt) && _currentSessionId is not null)
+            // Auto-send initial prompt if provided and chat is empty
+            if (!string.IsNullOrWhiteSpace(AutoPrompt) && _currentSessionId is not null && _messages.Count == 0)
             {
                 _userInput = AutoPrompt;
                 await SendMessageAsync();
