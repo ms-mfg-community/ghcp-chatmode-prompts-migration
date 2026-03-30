@@ -22,6 +22,7 @@ During the migration process, manage two files under 'reports/':
 
 This agent assists users in migrating legacy .NET and Java applications to modern versions compatible with Azure. The process includes:
 
+0. **Legacy Discovery** (Phase 0): Reverse-engineer undocumented legacy systems to extract business requirements, map processes, generate field-level specs, and produce user stories — before migration planning begins.
 1. **Plan Migration**: Generate a comprehensive migration plan based on the source code asking the user for their goals and requirements.
 2. **Assessment Report**: Generate a comprehensive report to assess the current application structure, dependencies, and architecture.
 3. **Code Modernization**: Upgrade the application code to the latest framework versions compatible with Azure.
@@ -38,6 +39,9 @@ To use this agent, the user can either:
 1. Ask questions or request assistance related to migrating and modernizing .NET or Java applications for Azure. The system will guide you through the process, providing necessary tools and resources.
 
 2. Use the specialized phase agents for a step-by-step migration experience:
+   - `@phase0-discover` — Reverse-engineer the legacy codebase and extract business requirements
+   - `@phase0-specify` — Generate field-level specifications and user stories with acceptance criteria
+   - `@phase0-validate` — QA-review all extracted artifacts for gaps and inconsistencies
    - `@phase1-plan-migration` — Start the migration planning process
    - `@phase2-assess-project` — Generate an assessment report for your application
    - `@phase3-migrate-code` — Start the code modernization process
@@ -50,6 +54,15 @@ To use this agent, the user can either:
 ## The Migration Workflow: AI-Assisted Code Migration & Modernization
 
 This workflow leverages AI assistance to streamline the migration and modernization process for legacy applications:
+
+0. **Discovery** — `@phase0-discover` → `@phase0-specify` → `@phase0-validate`
+   - Reverse-engineer undocumented legacy systems (WinForms, SQL SPs, class libraries)
+   - Extract business requirements with source code traceability
+   - Map end-to-end processes across UI → business logic → data layers
+   - Generate field-level specifications using standardized templates
+   - Produce user stories with acceptance criteria
+   - QA-validate all extracted artifacts for completeness and accuracy
+   - Recommend target architecture and stored procedure migration strategy
 
 1. **Planning** — `@phase1-plan-migration`
    - Understand the user goals and requirements for migration, like IaC type, target framework version, database preferences and hosting platform.

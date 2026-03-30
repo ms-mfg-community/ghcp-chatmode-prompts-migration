@@ -29,6 +29,7 @@ If the modernization process has started, ensure the status file contains:
 - Selected Azure hosting platform (App Service, AKS, or Container Apps)
 - Selected Infrastructure as Code type (Bicep or Terraform)
 - Completed phases with timestamps:
+  * Phase 0: Discovery (sub-phases: Discover, Specify, Validate)
   * Phase 1: Planning
   * Phase 2: Assessment
   * Phase 3: Code Migration
