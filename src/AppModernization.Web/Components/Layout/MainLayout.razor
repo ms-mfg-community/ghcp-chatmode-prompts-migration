@@ -18,13 +18,77 @@
                              alt="avatar" class="rounded-circle" width="28" height="28"
                              onerror="this.style.display='none'" />
                         <span class="fw-semibold small">@context.User.Identity?.Name</span>
-                        <a href="/auth/logout" class="btn btn-sm btn-outline-secondary ms-2">Sign out</a>
+                        @{
+                            var method = context.User.FindFirst("urn:github:auth_method")?.Value;
+                        }
+                        <span class="badge bg-secondary-subtle text-secondary small">@(method ?? "session")</span>
+                        <a href="/auth/logout" class="btn btn-sm btn-outline-secondary ms-1">Sign out</a>
                     </div>
                 </Authorized>
                 <NotAuthorized>
-                    <a href="/auth/login" class="btn btn-sm btn-dark">
-                        <span class="me-1">🔑</span> Sign in with GitHub
-                    </a>
+                    <div class="d-flex align-items-center gap-2">
+                        @* Help tooltip *@
+                        <div class="position-relative" @onmouseenter="() => _showHelp = true" @onmouseleave="() => _showHelp = false">
+                            <button class="btn btn-sm btn-outline-secondary rounded-circle" style="width:28px; height:28px; padding:0; font-size:0.8rem;" title="Authentication help">?</button>
+                            @if (_showHelp)
+                            {
+                                <div class="auth-help-popover position-absolute end-0 mt-1 p-3 bg-white border rounded shadow-lg" style="width: 380px; z-index: 1050;">
+                                    <h6 class="fw-bold mb-2">🔐 Authentication Options</h6>
+
+                                    <div class="mb-3">
+                                        <strong class="text-primary">Option 1: GitHub OAuth App</strong>
+                                        <p class="small text-muted mb-1">Best for teams. Register an OAuth App at:</p>
+                                        <a href="https://github.com/settings/developers" target="_blank" class="small">github.com/settings/developers</a>
+                                        <ul class="small text-muted mt-1 mb-0 ps-3">
+                                            <li>Set callback URL to: <code>https://localhost:5001/signin-github</code></li>
+                                            <li>Add Client ID &amp; Secret to <code>appsettings.json</code> or user-secrets</li>
+                                        </ul>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <strong class="text-success">Option 2: GitHub App</strong>
+                                        <p class="small text-muted mb-0">Uses the same OAuth flow. Create a GitHub App at:</p>
+                                        <a href="https://github.com/settings/apps" target="_blank" class="small">github.com/settings/apps</a>
+                                        <ul class="small text-muted mt-1 mb-0 ps-3">
+                                            <li>Enable "Request user authorization (OAuth)" in permissions</li>
+                                            <li>Same Client ID / Secret configuration</li>
+                                        </ul>
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <strong class="text-warning">Option 3: Personal Access Token</strong>
+                                        <p class="small text-muted mb-0">Quick setup for individual use. Generate at:</p>
+                                        <a href="https://github.com/settings/tokens" target="_blank" class="small">github.com/settings/tokens</a>
+                                        <ul class="small text-muted mt-1 mb-0 ps-3">
+                                            <li>Fine-grained token with <code>read:user</code> scope</li>
+                                            <li>Paste into the PAT field below and click "Sign in"</li>
+                                        </ul>
+                                    </div>
+
+                                    <hr class="my-2" />
+                                    <p class="small text-muted mb-0">
+                                        <strong>Copilot SDK</strong> also requires a GitHub Copilot subscription
+                                        and the <a href="https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli" target="_blank">Copilot CLI</a> installed locally.
+                                    </p>
+                                </div>
+                            }
+                        </div>
+
+                        @* Auth options *@
+                        <a href="/auth/login" class="btn btn-sm btn-dark">
+                            Sign in with GitHub
+                        </a>
+
+                        <span class="text-muted small">or</span>
+
+                        @* PAT inline form *@
+                        <form action="/auth/pat-login" method="post" class="d-flex align-items-center gap-1">
+                            <input type="password" name="pat" class="form-control form-control-sm"
+                                   placeholder="Paste PAT" style="width: 140px; font-size: 0.8rem;"
+                                   autocomplete="off" />
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Go</button>
+                        </form>
+                    </div>
                 </NotAuthorized>
             </AuthorizeView>
         </div>
@@ -40,3 +104,7 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private bool _showHelp;
+}

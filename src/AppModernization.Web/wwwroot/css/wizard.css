@@ -274,6 +274,19 @@
     font-weight: 600;
 }
 
+/* --- Auth Help Popover --- */
+.auth-help-popover {
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.auth-help-popover code {
+    background-color: rgba(0, 0, 0, 0.06);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.8em;
+}
+
 /* --- Responsive adjustments --- */
 @media (max-width: 992px) {
     .split-layout {
