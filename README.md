@@ -20,10 +20,67 @@ Through agent-guided workflows, developers can efficiently transform legacy appl
 
 ## Requirements
 
+### For Agents (VS Code / CLI)
 - GitHub Copilot (Pro, Pro+, Business, or Enterprise)
 - Visual Studio Code with GitHub Copilot Chat
 - Azure CLI (`az`) and Azure Developer CLI (`azd`)
 - Development tools appropriate for your application (.NET SDK, JDK, etc.)
+
+### For Web UI (`src/AppModernization.Web`)
+- .NET 10 SDK
+- [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) installed and authenticated
+- One of the authentication methods below
+
+## Authentication (Web UI)
+
+The web wizard supports three authentication methods. Choose whichever fits your scenario:
+
+### Option 1: GitHub OAuth App (recommended for teams)
+
+1. Go to [github.com/settings/developers](https://github.com/settings/developers) → **New OAuth App**
+2. Fill in:
+   | Field | Value |
+   |-------|-------|
+   | Application name | `App Modernization Wizard` |
+   | Homepage URL | `https://localhost:7292` |
+   | Authorization callback URL | `https://localhost:7292/signin-github` |
+3. Copy the **Client ID** and generate a **Client Secret**
+4. Configure credentials:
+   ```bash
+   cd src/AppModernization.Web
+   dotnet user-secrets init
+   dotnet user-secrets set "GitHub:ClientId" "your-client-id"
+   dotnet user-secrets set "GitHub:ClientSecret" "your-client-secret"
+   ```
+5. Restart the app — the "Sign in with GitHub" button will appear
+
+**Permissions**: OAuth Apps don't have granular permissions at registration. The app requests `read:user` and `user:email` scopes at login time.
+
+### Option 2: GitHub App (recommended for enterprise)
+
+1. Go to [github.com/settings/apps](https://github.com/settings/apps) → **New GitHub App**
+2. Configure:
+   | Setting | Value |
+   |---------|-------|
+   | App name | `App Modernization Wizard` |
+   | Homepage URL | `https://localhost:7292` |
+   | Callback URL | `https://localhost:7292/signin-github` |
+   | ✅ Request user authorization (OAuth) | Enabled |
+3. **Required permissions**:
+   - Account permissions → **Email addresses**: Read-only
+   - Account permissions → **Profile**: Read-only (implicit)
+4. Copy Client ID and Client Secret, configure the same way as Option 1
+
+### Option 3: Personal Access Token (quickest for individual use)
+
+No server configuration needed — just paste a token in the UI.
+
+1. Go to [github.com/settings/tokens](https://github.com/settings/tokens?type=beta)
+2. Create a **fine-grained token** with:
+   - Account permissions → **Profile**: Read-only
+   - Account permissions → **Email addresses**: Read-only (optional)
+3. Or create a **classic token** with scopes: `read:user`, `user:email`
+4. Paste the token into the PAT field in the app's top bar and click **Go**
 
 ## Repository Structure
 

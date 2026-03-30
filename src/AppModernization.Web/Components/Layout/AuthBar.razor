@@ -27,32 +27,45 @@
 
                         <div class="mb-3">
                             <strong class="text-primary">Option 1: GitHub OAuth App</strong>
-                            <p class="small text-muted mb-1">Best for teams. Register an OAuth App at:</p>
+                            <p class="small text-muted mb-1">Best for teams. Register at:</p>
                             <a href="https://github.com/settings/developers" target="_blank" class="small">github.com/settings/developers</a>
                             <ul class="small text-muted mt-1 mb-0 ps-3">
-                                <li>Set callback URL to: <code>https://localhost:5001/signin-github</code></li>
-                                <li>Add Client ID &amp; Secret to <code>appsettings.json</code> or user-secrets</li>
+                                <li>Callback URL: <code>https://localhost:7292/signin-github</code></li>
+                                <li>Add Client ID &amp; Secret via user-secrets or <code>appsettings.json</code></li>
                             </ul>
+                            <div class="small mt-1"><strong>Permissions needed:</strong> none (OAuth Apps don't have granular scopes at registration — scopes are requested at login time: <code>read:user</code>, <code>user:email</code>)</div>
                         </div>
 
                         <div class="mb-3">
                             <strong class="text-success">Option 2: GitHub App</strong>
-                            <p class="small text-muted mb-0">Uses the same OAuth flow. Create a GitHub App at:</p>
+                            <p class="small text-muted mb-0">Enterprise-grade. Create at:</p>
                             <a href="https://github.com/settings/apps" target="_blank" class="small">github.com/settings/apps</a>
                             <ul class="small text-muted mt-1 mb-0 ps-3">
-                                <li>Enable "Request user authorization (OAuth)" in permissions</li>
-                                <li>Same Client ID / Secret configuration</li>
+                                <li>Callback URL: <code>https://localhost:7292/signin-github</code></li>
+                                <li>Check ✅ "Request user authorization (OAuth)" under General</li>
+                                <li>Same Client ID / Client Secret configuration as OAuth App</li>
+                            </ul>
+                            <div class="small mt-1"><strong>Required permissions:</strong></div>
+                            <ul class="small text-muted mb-0 ps-3">
+                                <li>Account permissions → Email addresses: <strong>Read-only</strong></li>
+                                <li>Account permissions → Profile: <strong>Read-only</strong> (implicit)</li>
                             </ul>
                         </div>
 
                         <div class="mb-2">
-                            <strong class="text-warning">Option 3: Personal Access Token</strong>
-                            <p class="small text-muted mb-0">Quick setup for individual use. Generate at:</p>
-                            <a href="https://github.com/settings/tokens" target="_blank" class="small">github.com/settings/tokens</a>
-                            <ul class="small text-muted mt-1 mb-0 ps-3">
-                                <li>Fine-grained token with <code>read:user</code> scope</li>
-                                <li>Paste into the PAT field and click "Sign in"</li>
+                            <strong class="text-warning">Option 3: Personal Access Token (PAT)</strong>
+                            <p class="small text-muted mb-0">Quickest setup. Generate at:</p>
+                            <a href="https://github.com/settings/tokens?type=beta" target="_blank" class="small">github.com/settings/tokens</a>
+                            <div class="small mt-1"><strong>Required permissions (fine-grained):</strong></div>
+                            <ul class="small text-muted mb-0 ps-3">
+                                <li>Account permissions → Profile: <strong>Read-only</strong></li>
+                                <li>Account permissions → Email addresses: <strong>Read-only</strong> (optional)</li>
                             </ul>
+                            <div class="small mt-1"><strong>Required scopes (classic):</strong></div>
+                            <ul class="small text-muted mb-0 ps-3">
+                                <li><code>read:user</code> and <code>user:email</code></li>
+                            </ul>
+                            <p class="small text-muted mt-1 mb-0">Paste into the PAT field and click "Go"</p>
                         </div>
 
                         <hr class="my-2" />
@@ -90,8 +103,8 @@
                             <div class="mb-2 ps-3">
                                 <table class="table table-sm table-borderless mb-0" style="font-size: 0.8rem;">
                                     <tr><td class="text-muted pe-2">App name:</td><td><code>App Modernization Wizard</code></td></tr>
-                                    <tr><td class="text-muted pe-2">Homepage:</td><td><code>https://localhost:5001</code></td></tr>
-                                    <tr><td class="text-muted pe-2">Callback:</td><td><code>https://localhost:5001/signin-github</code></td></tr>
+                                    <tr><td class="text-muted pe-2">Homepage:</td><td><code>https://localhost:7292</code></td></tr>
+                                    <tr><td class="text-muted pe-2">Callback:</td><td><code>https://localhost:7292/signin-github</code></td></tr>
                                 </table>
                             </div>
 
