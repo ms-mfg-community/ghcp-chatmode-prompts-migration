@@ -1,0 +1,231 @@
+@using AppModernization.Web.Models
+@using Markdig
+@rendermode InteractiveServer
+@inject Services.CopilotService CopilotService
+@inject ILogger<ChatPanel> Logger
+@implements IDisposable
+
+<div class="chat-panel d-flex flex-column">
+    <div class="chat-panel-header px-3 py-2 border-bottom bg-light">
+        <h6 class="mb-0">
+            <i class="bi bi-chat-dots me-2"></i>
+            @(Phase?.Name ?? "Chat") Assistant
+        </h6>
+    </div>
+
+    <div class="chat-panel-messages flex-grow-1 overflow-auto p-3" @ref="_messageContainer" id="chat-messages">
+        @if (_messages.Count == 0 && !_isLoading)
+        {
+            <div class="text-center text-muted py-5">
+                <div class="mb-3" style="font-size: 2.5rem;">💬</div>
+                <p>Start a conversation with the <strong>@(Phase?.Name ?? "migration")</strong> assistant.</p>
+                <p class="small">Ask questions, get guidance, or request actions for this phase.</p>
+            </div>
+        }
+
+        @foreach (var message in _messages)
+        {
+            <ChatMessageBubble Message="message" />
+        }
+
+        @if (_isLoading)
+        {
+            <div class="d-flex align-items-center text-muted py-2">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Thinking...</span>
+                </div>
+                <span class="small">Assistant is thinking...</span>
+            </div>
+        }
+    </div>
+
+    <div class="chat-panel-input border-top p-3">
+        @if (_sessionError is not null)
+        {
+            <div class="alert alert-warning py-1 px-2 mb-2 small">
+                <i class="bi bi-exclamation-triangle me-1"></i> @_sessionError
+                <button class="btn btn-sm btn-link p-0 ms-2" @onclick="InitializeSessionAsync">Retry</button>
+            </div>
+        }
+
+        <div class="input-group">
+            <textarea class="form-control"
+                      placeholder="@(_currentSessionId is null ? "Initializing..." : "Type your message...")"
+                      @bind="_userInput"
+                      @onkeydown="HandleKeyDown"
+                      disabled="@(_currentSessionId is null || _isLoading)"
+                      rows="1"
+                      style="resize: none; min-height: 38px; max-height: 120px;" />
+            <button class="btn btn-primary"
+                    @onclick="SendMessageAsync"
+                    disabled="@(string.IsNullOrWhiteSpace(_userInput) || _isLoading || _currentSessionId is null)"
+                    title="Send message">
+                <span class="d-none d-md-inline">Send</span>
+                <span class="d-md-none">➤</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public PhaseInfo? Phase { get; set; }
+    [Parameter] public string? SessionId { get; set; }
+
+    private readonly List<ChatMessage> _messages = new();
+    private string _userInput = "";
+    private bool _isLoading;
+    private string? _currentSessionId;
+    private string? _sessionError;
+    private ElementReference _messageContainer;
+
+    // Tracks the streaming assistant message being built up
+    private ChatMessage? _streamingMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            CopilotService.OnMessageReceived += HandleMessageReceived;
+            CopilotService.OnSessionIdle += HandleSessionIdle;
+
+            await InitializeSessionAsync();
+        }
+    }
+
+    private async Task InitializeSessionAsync()
+    {
+        _sessionError = null;
+
+        try
+        {
+            if (SessionId is not null && CopilotService.HasSession(SessionId))
+            {
+                _currentSessionId = SessionId;
+            }
+            else if (Phase is not null)
+            {
+                await CopilotService.InitializeAsync();
+                _currentSessionId = await CopilotService.CreateSessionForPhaseAsync(Phase);
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to initialize chat session");
+            _sessionError = "Could not connect to the Copilot assistant. Check that the Copilot CLI is available.";
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessageAsync();
+        }
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_userInput) || _currentSessionId is null || _isLoading)
+            return;
+
+        var userMessage = _userInput.Trim();
+        _userInput = "";
+
+        // Add user message to the list
+        _messages.Add(new ChatMessage
+        {
+            Role = "user",
+            Content = userMessage
+        });
+
+        _isLoading = true;
+        _streamingMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await CopilotService.SendMessageAsync(_currentSessionId, userMessage);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to send message");
+            _messages.Add(new ChatMessage
+            {
+                Role = "system",
+                Content = "Failed to send message. Please try again."
+            });
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleMessageReceived(string sessionId, ChatMessage message)
+    {
+        if (sessionId != _currentSessionId) return;
+
+        InvokeAsync(() =>
+        {
+            if (message.IsStreaming)
+            {
+                // Accumulate streaming deltas into a single assistant message
+                if (_streamingMessage is null)
+                {
+                    _streamingMessage = new ChatMessage
+                    {
+                        Role = "assistant",
+                        Content = message.Content,
+                        IsStreaming = true
+                    };
+                    _messages.Add(_streamingMessage);
+                }
+                else
+                {
+                    _streamingMessage.Content += message.Content;
+                }
+            }
+            else
+            {
+                // Complete message received — replace or finalize the streaming message
+                if (_streamingMessage is not null)
+                {
+                    _streamingMessage.Content = message.Content;
+                    _streamingMessage.IsStreaming = false;
+                    _streamingMessage = null;
+                }
+                else
+                {
+                    _messages.Add(message);
+                }
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private void HandleSessionIdle(string sessionId)
+    {
+        if (sessionId != _currentSessionId) return;
+
+        InvokeAsync(() =>
+        {
+            _isLoading = false;
+
+            // Finalize any still-streaming message
+            if (_streamingMessage is not null)
+            {
+                _streamingMessage.IsStreaming = false;
+                _streamingMessage = null;
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        CopilotService.OnMessageReceived -= HandleMessageReceived;
+        CopilotService.OnSessionIdle -= HandleSessionIdle;
+    }
+}

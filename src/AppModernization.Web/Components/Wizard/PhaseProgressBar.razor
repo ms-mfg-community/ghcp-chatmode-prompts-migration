@@ -1,0 +1,72 @@
+@using AppModernization.Web.Models
+
+<div class="phase-progress-bar py-3 px-2">
+    <div class="d-flex align-items-center justify-content-between position-relative">
+        @for (int i = 0; i < Phases.Count; i++)
+        {
+            var phase = Phases[i];
+            var isActive = phase.Id == ActivePhaseId;
+            var isFirst = i == 0;
+            var isLast = i == Phases.Count - 1;
+
+            @* Connecting line before this circle *@
+            @if (!isFirst)
+            {
+                <div class="phase-progress-line flex-grow-1 @GetLineClass(Phases[i - 1])"></div>
+            }
+
+            @* Phase circle *@
+            <div class="phase-progress-step text-center position-relative @(isActive ? "active" : "")"
+                 title="@phase.Name: @phase.Description">
+                <div class="phase-circle @GetCircleClass(phase, isActive)">
+                    @if (phase.Status == PhaseStatus.Completed)
+                    {
+                        <span>✓</span>
+                    }
+                    else if (phase.Status == PhaseStatus.Skipped)
+                    {
+                        <span>—</span>
+                    }
+                    else
+                    {
+                        <span>@GetPhaseLabel(phase)</span>
+                    }
+                </div>
+                <div class="phase-label mt-1 @(phase.Status == PhaseStatus.Skipped ? "text-decoration-line-through" : "")">
+                    <small class="@(isActive ? "fw-bold text-primary" : "text-muted")">@phase.Name</small>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<PhaseInfo> Phases { get; set; } = new();
+
+    [Parameter]
+    public string? ActivePhaseId { get; set; }
+
+    private string GetCircleClass(PhaseInfo phase, bool isActive) => (phase.Status, isActive) switch
+    {
+        (PhaseStatus.Completed, _) => "bg-success text-white",
+        (_, true) => "bg-primary text-white phase-pulse",
+        (PhaseStatus.InProgress, _) => "bg-primary text-white",
+        (PhaseStatus.Skipped, _) => "bg-secondary text-white",
+        _ => "bg-light text-muted border"
+    };
+
+    private static string GetLineClass(PhaseInfo precedingPhase) => precedingPhase.Status switch
+    {
+        PhaseStatus.Completed => "bg-success",
+        PhaseStatus.Skipped => "bg-secondary",
+        _ => "bg-light"
+    };
+
+    private static string GetPhaseLabel(PhaseInfo phase)
+    {
+        if (phase.SubPhase is not null)
+            return $"0.{phase.SubPhase[0].ToString().ToUpper()}";
+        return phase.PhaseNumber.ToString();
+    }
+}

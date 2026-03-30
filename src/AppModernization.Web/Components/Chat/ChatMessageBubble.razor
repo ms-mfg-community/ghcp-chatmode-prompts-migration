@@ -1,0 +1,75 @@
+@using AppModernization.Web.Models
+@using Markdig
+
+<div class="chat-message @Message.Role mb-3 @(Message.Role == "user" ? "text-end" : "")">
+    <div class="d-inline-block @GetBubbleClasses() px-3 py-2 rounded-3" style="max-width: 85%;">
+        <div class="chat-message-role small fw-semibold mb-1 @GetRoleLabelColor()">
+            @GetRoleLabel()
+        </div>
+        <div class="chat-message-content">
+            @if (Message.Role == "assistant" || Message.Role == "system")
+            {
+                @((MarkupString)RenderMarkdown(Message.Content))
+            }
+            else
+            {
+                <span style="white-space: pre-wrap;">@Message.Content</span>
+            }
+            @if (Message.IsStreaming)
+            {
+                <span class="streaming-cursor">▌</span>
+            }
+        </div>
+        <div class="chat-message-time text-muted mt-1" style="font-size: 0.7rem;">
+            @Message.Timestamp.ToLocalTime().ToString("h:mm tt")
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ChatMessage Message { get; set; } = default!;
+
+    private static readonly MarkdownPipeline _pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
+    private string GetBubbleClasses() => Message.Role switch
+    {
+        "user" => "bg-primary text-white",
+        "assistant" => "bg-light border",
+        "system" => "bg-warning-subtle border border-warning",
+        _ => "bg-light border"
+    };
+
+    private string GetRoleLabelColor() => Message.Role switch
+    {
+        "user" => "text-white-50",
+        "assistant" => "text-primary",
+        "system" => "text-warning",
+        _ => "text-muted"
+    };
+
+    private string GetRoleLabel() => Message.Role switch
+    {
+        "user" => "You",
+        "assistant" => "Copilot",
+        "system" => "System",
+        _ => Message.Role
+    };
+
+    private static string RenderMarkdown(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return "";
+
+        try
+        {
+            return Markdown.ToHtml(markdown, _pipeline);
+        }
+        catch
+        {
+            return System.Net.WebUtility.HtmlEncode(markdown);
+        }
+    }
+}

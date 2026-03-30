@@ -1,0 +1,136 @@
+@page "/"
+@rendermode InteractiveServer
+@inject Services.MigrationStateService StateService
+@inject NavigationManager Navigation
+
+<PageTitle>App Modernization — Home</PageTitle>
+
+<div class="container py-5">
+    @* Hero Section *@
+    <div class="hero-section text-center p-5 mb-5">
+        <h1 class="display-5 fw-bold mb-3">🚀 App Modernization Assistant</h1>
+        <p class="lead mb-4" style="max-width: 600px; margin: 0 auto;">
+            Migrate legacy applications to modern cloud-native architectures on Azure,
+            guided step-by-step by GitHub Copilot.
+        </p>
+        @if (StateService.CurrentProject is not null)
+        {
+            <a href="/dashboard" class="btn btn-light btn-lg px-4">
+                Continue: @StateService.CurrentProject.Name →
+            </a>
+        }
+    </div>
+
+    @* New Project Form *@
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h4 class="card-title mb-4">Start a New Migration</h4>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Project Name</label>
+                        <input type="text" class="form-control" @bind="_projectName"
+                               placeholder="e.g., Contoso Legacy ERP Migration" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Source Code Path</label>
+                        <input type="text" class="form-control" @bind="_sourcePath"
+                               placeholder="e.g., C:\repos\legacy-app or /home/user/legacy-app" />
+                        <div class="form-text">Path to the legacy application source code.</div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    @* Phase 0 Decision *@
+                    <div class="mb-4">
+                        <h5 class="mb-3">Do you need Phase 0 (Discovery)?</h5>
+                        <p class="text-muted small mb-3">
+                            Phase 0 analyzes undocumented or poorly documented legacy codebases to extract
+                            business requirements before migration planning. Skip it if you already have
+                            good documentation.
+                        </p>
+
+                        <div class="d-flex gap-3">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="usePhase0"
+                                       id="phase0Yes" checked="@_usePhase0"
+                                       @onchange="() => _usePhase0 = true" />
+                                <label class="form-check-label" for="phase0Yes">
+                                    <strong>Yes</strong> — I need discovery
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="usePhase0"
+                                       id="phase0No" checked="@(!_usePhase0)"
+                                       @onchange="() => _usePhase0 = false" />
+                                <label class="form-check-label" for="phase0No">
+                                    <strong>No</strong> — Skip to planning
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-end">
+                        <button class="btn btn-primary btn-lg px-5"
+                                @onclick="StartProject"
+                                disabled="@string.IsNullOrWhiteSpace(_projectName)">
+                            Start New Migration →
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Info Section *@
+    <div class="row mt-5 g-4">
+        <div class="col-md-4">
+            <div class="text-center p-3">
+                <div class="mb-2" style="font-size: 2rem;">🔍</div>
+                <h6>Discover &amp; Specify</h6>
+                <p class="small text-muted">Analyze legacy code, extract requirements, and define specs.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="text-center p-3">
+                <div class="mb-2" style="font-size: 2rem;">🔄</div>
+                <h6>Plan &amp; Migrate</h6>
+                <p class="small text-muted">Create migration plans, assess risks, and convert code.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="text-center p-3">
+                <div class="mb-2" style="font-size: 2rem;">☁️</div>
+                <h6>Deploy &amp; Automate</h6>
+                <p class="small text-muted">Generate IaC, deploy to Azure, and set up CI/CD pipelines.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _projectName = "";
+    private string _sourcePath = "";
+    private bool _usePhase0 = true;
+
+    private void StartProject()
+    {
+        if (string.IsNullOrWhiteSpace(_projectName)) return;
+
+        var project = StateService.InitializeProject(_projectName.Trim());
+        project.SourcePath = string.IsNullOrWhiteSpace(_sourcePath) ? null : _sourcePath.Trim();
+        project.UsePhase0 = _usePhase0;
+
+        if (!_usePhase0)
+        {
+            // Skip Phase 0 sub-phases
+            StateService.SkipPhase("phase0-discover");
+            StateService.SkipPhase("phase0-specify");
+            StateService.SkipPhase("phase0-validate");
+        }
+
+        Navigation.NavigateTo(_usePhase0 ? "/phase0/discover" : "/dashboard");
+    }
+}

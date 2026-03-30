@@ -1,0 +1,56 @@
+@using AppModernization.Web.Models
+@rendermode InteractiveServer
+
+<div class="split-layout d-flex h-100">
+    @* Left panel: phase content and actions *@
+    <div class="split-layout-left d-flex flex-column border-end" style="width: 60%; min-width: 400px;">
+        <div class="p-4 flex-grow-1 overflow-auto">
+            <div class="mb-3">
+                <span class="badge bg-primary-subtle text-primary me-2">Phase @Phase.PhaseNumber@(Phase.SubPhase is not null ? $" — {Phase.SubPhase}" : "")</span>
+                @if (Phase.Status != PhaseStatus.NotStarted)
+                {
+                    <span class="badge @GetStatusBadgeClass()">@Phase.Status</span>
+                }
+            </div>
+
+            <h3 class="mb-2">@Phase.Name</h3>
+            <p class="text-muted mb-4">@Phase.Description</p>
+
+            @if (PhaseContent is not null)
+            {
+                @PhaseContent
+            }
+        </div>
+
+        @if (PhaseActions is not null)
+        {
+            <div class="p-3 border-top bg-light">
+                @PhaseActions
+            </div>
+        }
+    </div>
+
+    @* Right panel: chat *@
+    <div class="split-layout-right d-flex flex-column" style="width: 40%; min-width: 350px;">
+        <AppModernization.Web.Components.Chat.ChatPanel Phase="Phase" />
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public PhaseInfo Phase { get; set; } = default!;
+
+    [Parameter]
+    public RenderFragment? PhaseContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? PhaseActions { get; set; }
+
+    private string GetStatusBadgeClass() => Phase.Status switch
+    {
+        PhaseStatus.InProgress => "bg-info text-dark",
+        PhaseStatus.Completed => "bg-success",
+        PhaseStatus.Skipped => "bg-secondary",
+        _ => "bg-light text-muted"
+    };
+}

@@ -1,0 +1,147 @@
+@page "/dashboard"
+@rendermode InteractiveServer
+@using AppModernization.Web.Models
+@using AppModernization.Web.Components.Wizard
+@inject Services.MigrationStateService StateService
+@inject NavigationManager Navigation
+
+<PageTitle>Dashboard — App Modernization</PageTitle>
+
+<div class="container-fluid py-4">
+    @if (StateService.CurrentProject is null)
+    {
+        <div class="text-center py-5">
+            <h4 class="text-muted">No active migration project</h4>
+            <p>Start a new migration project from the home page.</p>
+            <a href="/" class="btn btn-primary">Go to Home</a>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">@StateService.CurrentProject.Name</h2>
+                <span class="text-muted small">
+                    Started @StateService.CurrentProject.CreatedAt.ToString("MMM d, yyyy")
+                </span>
+            </div>
+            <div class="text-end">
+                <div class="h4 mb-0 text-primary">@StateService.GetProgress().ToString("F0")%</div>
+                <small class="text-muted">Complete</small>
+            </div>
+        </div>
+
+        @* Overall progress bar *@
+        <div class="progress mb-4" style="height: 8px;">
+            <div class="progress-bar bg-success"
+                 role="progressbar"
+                 style="width: @(StateService.GetProgress())%"
+                 aria-valuenow="@StateService.GetProgress()"
+                 aria-valuemin="0"
+                 aria-valuemax="100">
+            </div>
+        </div>
+
+        @* Phase progress indicator *@
+        <PhaseProgressBar Phases="StateService.GetPhases()"
+                          ActivePhaseId="@StateService.GetCurrentPhase()?.Id" />
+
+        <hr class="my-4" />
+
+        @* Phase cards grid *@
+        <div class="row g-3">
+            @foreach (var phase in StateService.GetPhases())
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 @GetCardBorderClass(phase)">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="card-title mb-0">
+                                    @if (phase.SubPhase is not null)
+                                    {
+                                        <span class="text-muted me-1">0.</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted me-1">@phase.PhaseNumber.</span>
+                                    }
+                                    @phase.Name
+                                </h6>
+                                <span class="badge @GetStatusBadgeClass(phase)">@phase.Status</span>
+                            </div>
+                            <p class="card-text small text-muted mb-3">@phase.Description</p>
+
+                            @if (phase.StartedAt is not null)
+                            {
+                                <p class="small mb-1">
+                                    <span class="text-muted">Started:</span>
+                                    @phase.StartedAt.Value.ToString("MMM d, h:mm tt")
+                                </p>
+                            }
+                            @if (phase.CompletedAt is not null)
+                            {
+                                <p class="small mb-1">
+                                    <span class="text-muted">Completed:</span>
+                                    @phase.CompletedAt.Value.ToString("MMM d, h:mm tt")
+                                </p>
+                            }
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            @if (phase.Status == PhaseStatus.Completed)
+                            {
+                                <button class="btn btn-sm btn-outline-success w-100" @onclick="() => NavigateToPhase(phase)">
+                                    ✓ Review
+                                </button>
+                            }
+                            else if (phase.Status == PhaseStatus.InProgress)
+                            {
+                                <button class="btn btn-sm btn-primary w-100" @onclick="() => NavigateToPhase(phase)">
+                                    Continue →
+                                </button>
+                            }
+                            else if (phase.Status == PhaseStatus.Skipped)
+                            {
+                                <button class="btn btn-sm btn-outline-secondary w-100" disabled>
+                                    Skipped
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-outline-primary w-100" @onclick="() => NavigateToPhase(phase)">
+                                    Start
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private void NavigateToPhase(PhaseInfo phase)
+    {
+        if (phase.Status == PhaseStatus.NotStarted)
+        {
+            StateService.StartPhase(phase.Id);
+        }
+        Navigation.NavigateTo(phase.Route);
+    }
+
+    private static string GetCardBorderClass(PhaseInfo phase) => phase.Status switch
+    {
+        PhaseStatus.Completed => "border-success",
+        PhaseStatus.InProgress => "border-primary",
+        PhaseStatus.Skipped => "border-secondary opacity-75",
+        _ => ""
+    };
+
+    private static string GetStatusBadgeClass(PhaseInfo phase) => phase.Status switch
+    {
+        PhaseStatus.Completed => "bg-success",
+        PhaseStatus.InProgress => "bg-primary",
+        PhaseStatus.Skipped => "bg-secondary",
+        _ => "bg-light text-muted"
+    };
+}
