@@ -180,11 +180,7 @@ public class CopilotService : IAsyncDisposable
                             IsStreaming = false
                         });
                     }
-                    else
-                    {
-                        // Signal idle for empty final messages so streaming state resets
-                        OnSessionIdle?.Invoke(sessionId);
-                    }
+                    // Don't signal idle for empty messages — wait for real SessionIdleEvent
                     break;
 
                 case SessionIdleEvent:

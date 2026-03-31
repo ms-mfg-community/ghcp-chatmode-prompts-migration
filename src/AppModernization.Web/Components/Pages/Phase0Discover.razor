@@ -196,36 +196,53 @@ else
         // Build list of directories to search (in priority order)
         var searchDirs = new List<string>();
 
-        // 1. Project-scoped reports dir
+        // 1. Project-scoped reports dir (primary — always checked)
         var projectReportsPath = StateService.GetCurrentProjectReportsPath();
         if (projectReportsPath is not null && System.IO.Directory.Exists(projectReportsPath))
             searchDirs.Add(projectReportsPath);
 
-        // 2. Source project's reports dir (where Copilot agent writes when CWD is set)
-        var sourcePath = StateService.CurrentProject?.SourcePath;
-        if (!string.IsNullOrWhiteSpace(sourcePath))
-        {
-            var sourceReportsPath = System.IO.Path.Combine(sourcePath, "reports");
-            if (System.IO.Directory.Exists(sourceReportsPath))
-                searchDirs.Add(sourceReportsPath);
-        }
-
-        // 3. Repo-level reports dir
-        var repoReportsPath = System.IO.Path.GetFullPath(
-            System.IO.Path.Combine(Env.ContentRootPath, "..", "..", "reports"));
-        if (System.IO.Directory.Exists(repoReportsPath))
-            searchDirs.Add(repoReportsPath);
+        // 2. Source project's reports dir — only check for slug-prefixed files
+        //    (un-prefixed files here belong to other/older projects)
+        // 3. Repo-level reports dir — same, only slug-prefixed
 
         foreach (var (prefixedName, fallbackName) in discoveryReports)
         {
-            // Try prefixed name first, then fallback to original name
             string? filePath = null;
-            foreach (var dir in searchDirs)
+
+            // Check project-scoped dir for both prefixed and fallback names
+            if (projectReportsPath is not null)
             {
-                var candidate = System.IO.Path.Combine(dir, prefixedName);
-                if (System.IO.File.Exists(candidate)) { filePath = candidate; break; }
-                candidate = System.IO.Path.Combine(dir, fallbackName);
-                if (System.IO.File.Exists(candidate)) { filePath = candidate; break; }
+                var candidate = System.IO.Path.Combine(projectReportsPath, prefixedName);
+                if (System.IO.File.Exists(candidate)) filePath = candidate;
+                if (filePath is null)
+                {
+                    candidate = System.IO.Path.Combine(projectReportsPath, fallbackName);
+                    if (System.IO.File.Exists(candidate)) filePath = candidate;
+                }
+            }
+
+            // Check source and repo dirs — only for slug-prefixed names to avoid
+            // showing other projects' reports
+            if (filePath is null)
+            {
+                var otherDirs = new List<string>();
+                var sourcePath = StateService.CurrentProject?.SourcePath;
+                if (!string.IsNullOrWhiteSpace(sourcePath))
+                {
+                    var sourceReportsPath = System.IO.Path.Combine(sourcePath, "reports");
+                    if (System.IO.Directory.Exists(sourceReportsPath))
+                        otherDirs.Add(sourceReportsPath);
+                }
+                var repoReportsPath = System.IO.Path.GetFullPath(
+                    System.IO.Path.Combine(Env.ContentRootPath, "..", "..", "reports"));
+                if (System.IO.Directory.Exists(repoReportsPath))
+                    otherDirs.Add(repoReportsPath);
+
+                foreach (var dir in otherDirs)
+                {
+                    var candidate = System.IO.Path.Combine(dir, prefixedName);
+                    if (System.IO.File.Exists(candidate)) { filePath = candidate; break; }
+                }
             }
 
             if (filePath is not null)
