@@ -87,10 +87,13 @@ else
     private string? _autoPrompt;
     private string? _workingDirectory;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         if (StateService.CurrentProject is null)
-            await StateService.InitializeProjectAsync("New Migration Project");
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
 
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase2-assess");
         _workingDirectory = StateService.CurrentProject?.SourcePath;

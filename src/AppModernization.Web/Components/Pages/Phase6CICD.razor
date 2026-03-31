@@ -94,10 +94,13 @@ else
     private string? _workingDirectory;
     private string _pipelinePlatform = "GitHub Actions";
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         if (StateService.CurrentProject is null)
-            await StateService.InitializeProjectAsync("New Migration Project");
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
 
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase6-cicd");
         _workingDirectory = StateService.CurrentProject?.SourcePath;

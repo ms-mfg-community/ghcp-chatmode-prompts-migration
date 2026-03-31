@@ -117,10 +117,13 @@ else
     private string? _workingDirectory;
     private bool _saved;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         if (StateService.CurrentProject is null)
-            await StateService.InitializeProjectAsync("New Migration Project");
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
 
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase1-plan");
         _workingDirectory = StateService.CurrentProject?.SourcePath;
