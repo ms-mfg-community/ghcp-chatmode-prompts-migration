@@ -164,7 +164,22 @@
             {
                 using var cts = new CancellationTokenSource(InitTimeout);
 
-                if (SessionId is not null && CopilotService.HasSession(SessionId))
+                // Try to reattach to existing session for this phase
+                var existingSessionId = CopilotService.GetSessionForPhase(Phase.Id);
+                if (existingSessionId is not null && CopilotService.HasSession(existingSessionId))
+                {
+                    _currentSessionId = existingSessionId;
+
+                    // Restore message history from singleton
+                    var history = CopilotService.GetMessageHistory(existingSessionId);
+                    if (history.Count > 0)
+                    {
+                        _messages.Clear();
+                        _messages.AddRange(history);
+                        Logger.LogInformation("Restored {Count} messages from session {SessionId}", history.Count, existingSessionId);
+                    }
+                }
+                else if (SessionId is not null && CopilotService.HasSession(SessionId))
                 {
                     _currentSessionId = SessionId;
                 }
@@ -239,6 +254,16 @@
             Role = "user",
             Content = userMessage
         });
+
+        // Persist user message to singleton history for reconnect
+        if (_currentSessionId is not null)
+        {
+            CopilotService.AddToHistory(_currentSessionId, new ChatMessage
+            {
+                Role = "user",
+                Content = userMessage
+            });
+        }
 
         _isLoading = true;
         _streamingMessage = null;

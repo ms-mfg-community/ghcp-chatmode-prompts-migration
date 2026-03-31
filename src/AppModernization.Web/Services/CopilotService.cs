@@ -17,6 +17,12 @@ public class CopilotService : IAsyncDisposable
     private readonly SemaphoreSlim _initLock = new(1, 1);
     private bool _initialized;
 
+    // Maps phase ID → session ID (so we can find existing sessions for a phase)
+    private readonly ConcurrentDictionary<string, string> _phaseSessionMap = new();
+
+    // Stores message history per session for reconnect
+    private readonly ConcurrentDictionary<string, List<ChatMessage>> _messageHistory = new();
+
     /// <summary>
     /// Event fired when a chat message (or streaming delta) is received.
     /// The string key is the session ID.
@@ -150,6 +156,8 @@ public class CopilotService : IAsyncDisposable
 
         var sessionId = session.SessionId;
         _sessions[sessionId] = session;
+        _phaseSessionMap[phase.Id] = sessionId;
+        _messageHistory[sessionId] = new List<ChatMessage>();
 
         // Wire up event handlers
         session.On(evt =>
@@ -173,12 +181,18 @@ public class CopilotService : IAsyncDisposable
                     // Skip empty assistant messages (e.g. tool execution wrappers)
                     if (!string.IsNullOrWhiteSpace(msg.Data.Content))
                     {
-                        OnMessageReceived?.Invoke(sessionId, new ChatMessage
+                        var chatMsg = new ChatMessage
                         {
                             Role = "assistant",
                             Content = msg.Data.Content,
                             IsStreaming = false
-                        });
+                        };
+                        // Store in history for reconnect
+                        if (_messageHistory.TryGetValue(sessionId, out var hist))
+                        {
+                            lock (hist) { hist.Add(chatMsg); }
+                        }
+                        OnMessageReceived?.Invoke(sessionId, chatMsg);
                     }
                     // Don't signal idle for empty messages — wait for real SessionIdleEvent
                     break;
@@ -241,6 +255,39 @@ public class CopilotService : IAsyncDisposable
     /// Checks if a session exists and is active.
     /// </summary>
     public bool HasSession(string sessionId) => _sessions.ContainsKey(sessionId);
+
+    /// <summary>
+    /// Gets the existing session ID for a phase, or null if none exists.
+    /// </summary>
+    public string? GetSessionForPhase(string phaseId)
+    {
+        return _phaseSessionMap.TryGetValue(phaseId, out var sessionId) && _sessions.ContainsKey(sessionId)
+            ? sessionId
+            : null;
+    }
+
+    /// <summary>
+    /// Returns a copy of the stored message history for a session.
+    /// </summary>
+    public List<ChatMessage> GetMessageHistory(string sessionId)
+    {
+        if (_messageHistory.TryGetValue(sessionId, out var history))
+        {
+            lock (history) { return new List<ChatMessage>(history); }
+        }
+        return new List<ChatMessage>();
+    }
+
+    /// <summary>
+    /// Stores a message in the session history (called from ChatPanel for user messages).
+    /// </summary>
+    public void AddToHistory(string sessionId, ChatMessage message)
+    {
+        if (_messageHistory.TryGetValue(sessionId, out var hist))
+        {
+            lock (hist) { hist.Add(message); }
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {
