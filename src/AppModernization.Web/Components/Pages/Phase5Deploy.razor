@@ -122,8 +122,10 @@ else
 
     private void BuildAutoPrompt()
     {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
         _autoPrompt = "Prepare deployment for the migrated application.\n" +
-            "Read all reports in reports/ for context on the infrastructure and application.\n" +
+            $"Read all reports in {reportsDir}/ for context on the infrastructure and application.\n" +
             "Create an azure.yaml file for Azure Developer CLI (azd) support.\n" +
             "Guide me through the deployment steps.";
     }

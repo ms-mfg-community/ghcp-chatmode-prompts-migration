@@ -7,4 +7,6 @@ public class ReportFile
     public DateTime LastModified { get; set; }
     public long Size { get; set; }
     public string Location { get; set; } = "";
+    public string ProjectName { get; set; } = "";
+    public string PhaseName { get; set; } = "";
 }

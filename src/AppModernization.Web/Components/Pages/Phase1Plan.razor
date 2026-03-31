@@ -147,18 +147,20 @@ else
 
     private void BuildAutoPrompt()
     {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
         var sourcePath = StateService.CurrentProject?.SourcePath;
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
             _autoPrompt = $"Help me plan the migration for the application at: {sourcePath}\n" +
-                "Review any existing Phase 0 discovery reports in the reports/ directory.\n" +
+                $"Review any existing Phase 0 discovery reports in the {reportsDir}/ directory.\n" +
                 "I need to decide on: hosting platform, IaC type, database, and target framework.\n" +
                 "Guide me through these decisions.";
         }
         else
         {
             _autoPrompt = "Help me plan the migration for the application.\n" +
-                "Review any existing Phase 0 discovery reports in the reports/ directory.\n" +
+                $"Review any existing Phase 0 discovery reports in the {reportsDir}/ directory.\n" +
                 "I need to decide on: hosting platform, IaC type, database, and target framework.\n" +
                 "Guide me through these decisions.";
         }

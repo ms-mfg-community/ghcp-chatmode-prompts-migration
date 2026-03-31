@@ -106,8 +106,10 @@ else
 
     private void BuildAutoPrompt()
     {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
         _autoPrompt = "Generate Infrastructure as Code for the migrated application.\n" +
-            "Read the assessment and planning reports in reports/ for context.\n" +
+            $"Read the assessment and planning reports in {reportsDir}/ for context.\n" +
             "Create Bicep/Terraform files in the infra/ directory.\n" +
             "Include compute, monitoring, database, identity, and networking modules.";
     }

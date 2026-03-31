@@ -104,18 +104,20 @@ else
 
     private void BuildAutoPrompt()
     {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
         var sourcePath = StateService.CurrentProject?.SourcePath;
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
             _autoPrompt = $"Begin code migration for the application at: {sourcePath}\n" +
-                "Read the assessment report at reports/Application-Assessment-Report.md for context.\n" +
+                $"Read the assessment report at {reportsDir}/Application-Assessment-Report.md for context.\n" +
                 "Create a backup, then start migrating the code to the target framework.\n" +
                 "Make small, testable, incremental changes.";
         }
         else
         {
             _autoPrompt = "Begin code migration for the application.\n" +
-                "Read the assessment report at reports/Application-Assessment-Report.md for context.\n" +
+                $"Read the assessment report at {reportsDir}/Application-Assessment-Report.md for context.\n" +
                 "Create a backup, then start migrating the code to the target framework.\n" +
                 "Make small, testable, incremental changes.";
         }

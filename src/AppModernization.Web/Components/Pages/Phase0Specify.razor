@@ -96,11 +96,13 @@ else
 
     private void BuildAutoPrompt()
     {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
         _autoPrompt = "Based on the discovery reports, generate detailed specifications:\n" +
-            "1. Read reports/Legacy-Discovery-Report.md and reports/Business-Requirements.md\n" +
-            "2. Generate field-level specifications in reports/Field-Specifications.md\n" +
-            "3. Generate user stories with acceptance criteria in reports/User-Stories.md\n" +
-            "4. Generate a data dictionary in reports/Data-Dictionary.md\n" +
+            $"1. Read {reportsDir}/Legacy-Discovery-Report.md and {reportsDir}/Business-Requirements.md\n" +
+            $"2. Generate field-level specifications in {reportsDir}/Field-Specifications.md\n" +
+            $"3. Generate user stories with acceptance criteria in {reportsDir}/User-Stories.md\n" +
+            $"4. Generate a data dictionary in {reportsDir}/Data-Dictionary.md\n" +
             "Use the standardized field specification template format.";
     }
 

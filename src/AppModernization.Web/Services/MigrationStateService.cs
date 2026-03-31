@@ -21,6 +21,12 @@ public class MigrationStateService
 
     public MigrationProject? CurrentProject { get; private set; }
 
+    public string? GetCurrentProjectReportsPath()
+    {
+        if (CurrentProject is null) return null;
+        return _persistenceService.GetProjectReportsPath(CurrentProject.Id);
+    }
+
     public DateTime? LastSavedAt { get; private set; }
 
     public async Task<MigrationProject> InitializeProjectAsync(string name)

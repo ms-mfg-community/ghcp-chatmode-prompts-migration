@@ -111,21 +111,23 @@ else
 
     private void BuildAutoPrompt()
     {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
         var sourcePath = StateService.CurrentProject?.SourcePath;
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
             _autoPrompt = $"Perform a comprehensive assessment of the application at: {sourcePath}\n" +
-                "Read the planning reports in reports/ for context.\n" +
+                $"Read the planning reports in {reportsDir}/ for context.\n" +
                 "Analyze the application structure, dependencies, and architecture.\n" +
-                "Generate reports/Application-Assessment-Report.md with detailed findings.\n" +
+                $"Generate {reportsDir}/Application-Assessment-Report.md with detailed findings.\n" +
                 "Include risk assessment and migration effort estimates.";
         }
         else
         {
             _autoPrompt = "Perform a comprehensive assessment of the application.\n" +
-                "Read the planning reports in reports/ for context.\n" +
+                $"Read the planning reports in {reportsDir}/ for context.\n" +
                 "Analyze the application structure, dependencies, and architecture.\n" +
-                "Generate reports/Application-Assessment-Report.md with detailed findings.\n" +
+                $"Generate {reportsDir}/Application-Assessment-Report.md with detailed findings.\n" +
                 "Include risk assessment and migration effort estimates.";
         }
     }

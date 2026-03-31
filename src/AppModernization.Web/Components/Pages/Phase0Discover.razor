@@ -112,6 +112,8 @@ else
 
     private void BuildAutoPrompt()
     {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
         var sourcePath = StateService.CurrentProject?.SourcePath;
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
@@ -121,14 +123,14 @@ else
                 "2. Determine the application type (.NET Framework version, UI technology)\n" +
                 "3. Map the architecture and component relationships\n" +
                 "4. Extract business rules from code and stored procedures\n" +
-                "5. Document all findings in reports/Legacy-Discovery-Report.md\n" +
-                "6. Document extracted business requirements in reports/Business-Requirements.md\n" +
-                "7. Document process flows in reports/Process-Maps.md\n\n" +
-                "Generate all reports as markdown files in the reports/ directory.";
+                $"5. Document all findings in {reportsDir}/Legacy-Discovery-Report.md\n" +
+                $"6. Document extracted business requirements in {reportsDir}/Business-Requirements.md\n" +
+                $"7. Document process flows in {reportsDir}/Process-Maps.md\n\n" +
+                $"Generate all reports as markdown files in the {reportsDir}/ directory.";
         }
         else
         {
-            _autoPrompt = "Start the discovery process. Scan the current workspace, identify the application type and architecture, extract business rules, and generate all discovery reports in the reports/ directory.";
+            _autoPrompt = $"Start the discovery process. Scan the current workspace, identify the application type and architecture, extract business rules, and generate all discovery reports in the {reportsDir}/ directory.";
         }
     }
 

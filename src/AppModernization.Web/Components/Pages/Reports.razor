@@ -3,39 +3,87 @@
 @using System.IO
 @inject IWebHostEnvironment Env
 @inject Services.MigrationStateService StateService
+@inject Services.ProjectPersistenceService PersistenceService
 
 <PageTitle>Reports — App Modernization</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="mb-0">📊 Reports</h2>
-        <button class="btn btn-sm btn-outline-primary" @onclick="RefreshReports">
-            🔄 Refresh
-        </button>
+        <div>
+            <h2 class="mb-0">📊 Reports</h2>
+            @if (StateService.CurrentProject is not null)
+            {
+                <small class="text-muted">Project: @StateService.CurrentProject.Name</small>
+            }
+        </div>
+        <div class="d-flex gap-2">
+            <div class="btn-group btn-group-sm">
+                <button class="btn @(_viewMode == "current" ? "btn-primary" : "btn-outline-primary")"
+                        @onclick='() => SwitchView("current")'
+                        disabled="@(StateService.CurrentProject is null)">
+                    Current Project
+                </button>
+                <button class="btn @(_viewMode == "all" ? "btn-primary" : "btn-outline-primary")"
+                        @onclick='() => SwitchView("all")'>
+                    All Projects
+                </button>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshReports">
+                🔄 Refresh
+            </button>
+        </div>
     </div>
     
     <div class="mb-3">
-        <input type="text" class="form-control" placeholder="Search reports..." @bind="_searchFilter" @bind:event="oninput" />
+        <input type="text" class="form-control" placeholder="Search reports..." 
+               @bind="_searchFilter" @bind:event="oninput" />
     </div>
 
     @if (_reports.Any())
     {
-        <div class="list-group">
-            @foreach (var report in FilteredReports)
+        @if (_viewMode == "all")
+        {
+            @* Group by project *@
+            @foreach (var group in FilteredReports.GroupBy(r => r.ProjectName))
             {
-                <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(_selectedReport == report.FilePath ? "active" : "")"
-                        @onclick="() => SelectReport(report.FilePath)">
-                    <div>
-                        <strong>@report.Name</strong>
-                        <br />
-                        <small class="@(_selectedReport == report.FilePath ? "text-white-50" : "text-muted")">
-                            @report.Location · @report.LastModified.ToLocalTime().ToString("MMM d, yyyy h:mm tt") · @FormatSize(report.Size)
-                        </small>
-                    </div>
-                    <span class="badge bg-primary rounded-pill">MD</span>
-                </button>
+                <h6 class="text-muted mt-3 mb-2">📁 @group.Key</h6>
+                <div class="list-group mb-3">
+                    @foreach (var report in group)
+                    {
+                        <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(_selectedReport == report.FilePath ? "active" : "")"
+                                @onclick="() => SelectReport(report.FilePath)">
+                            <div>
+                                <strong>@report.Name</strong>
+                                <br />
+                                <small class="@(_selectedReport == report.FilePath ? "text-white-50" : "text-muted")">
+                                    @report.LastModified.ToLocalTime().ToString("MMM d, yyyy h:mm tt") · @FormatSize(report.Size)
+                                </small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">MD</span>
+                        </button>
+                    }
+                </div>
             }
-        </div>
+        }
+        else
+        {
+            <div class="list-group">
+                @foreach (var report in FilteredReports)
+                {
+                    <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(_selectedReport == report.FilePath ? "active" : "")"
+                            @onclick="() => SelectReport(report.FilePath)">
+                        <div>
+                            <strong>@report.Name</strong>
+                            <br />
+                            <small class="@(_selectedReport == report.FilePath ? "text-white-50" : "text-muted")">
+                                @report.LastModified.ToLocalTime().ToString("MMM d, yyyy h:mm tt") · @FormatSize(report.Size)
+                            </small>
+                        </div>
+                        <span class="badge bg-primary rounded-pill">MD</span>
+                    </button>
+                }
+            </div>
+        }
 
         @if (_selectedReport is not null)
         {
@@ -62,50 +110,108 @@
     private List<ReportFile> _reports = new();
     private string? _selectedReport;
     private string _searchFilter = "";
+    private string _viewMode = "current";
 
     private IEnumerable<ReportFile> FilteredReports =>
         string.IsNullOrWhiteSpace(_searchFilter)
             ? _reports
             : _reports.Where(r => r.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
 
-    protected override void OnInitialized() => RefreshReports();
+    protected override void OnInitialized()
+    {
+        _viewMode = StateService.CurrentProject is not null ? "current" : "all";
+        RefreshReports();
+    }
+
+    private void SwitchView(string mode)
+    {
+        _viewMode = mode;
+        RefreshReports();
+    }
 
     private void RefreshReports()
     {
-        var reportDirs = new List<(string DirPath, string Label)>();
+        _reports.Clear();
+        _selectedReport = null;
 
-        // 1. Repo-level reports directory
+        if (_viewMode == "current" && StateService.CurrentProject is not null)
+        {
+            // Show reports for current project only
+            var reportsPath = StateService.GetCurrentProjectReportsPath();
+            if (reportsPath is not null && Directory.Exists(reportsPath))
+            {
+                _reports = ScanDirectory(reportsPath, StateService.CurrentProject.Name);
+            }
+
+            // Also include legacy repo-level reports and source-path reports
+            AddLegacyReports(StateService.CurrentProject.Name);
+        }
+        else
+        {
+            // Show reports from all projects
+            LoadAllProjectReports();
+        }
+
+        StateHasChanged();
+    }
+
+    private void LoadAllProjectReports()
+    {
+        var projects = PersistenceService.ListProjectsAsync().GetAwaiter().GetResult();
+        foreach (var project in projects)
+        {
+            var reportsPath = PersistenceService.GetProjectReportsPath(project.Id);
+            if (Directory.Exists(reportsPath))
+            {
+                _reports.AddRange(ScanDirectory(reportsPath, project.Name));
+            }
+        }
+
+        // Also include legacy repo-level reports
+        AddLegacyReports("Shared");
+
+        _reports = _reports.OrderByDescending(r => r.LastModified).ToList();
+    }
+
+    private void AddLegacyReports(string projectName)
+    {
+        // Repo-level reports
         var repoReportsPath = System.IO.Path.GetFullPath(
             System.IO.Path.Combine(Env.ContentRootPath, "..", "..", "reports"));
         if (Directory.Exists(repoReportsPath))
-            reportDirs.Add((repoReportsPath, "repo"));
+        {
+            _reports.AddRange(ScanDirectory(repoReportsPath, projectName, "repo"));
+        }
 
-        // 2. Source project's reports directory (where the Copilot agent writes)
+        // Source project reports
         var sourcePath = StateService.CurrentProject?.SourcePath;
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
             var sourceReportsPath = System.IO.Path.Combine(sourcePath, "reports");
-            if (Directory.Exists(sourceReportsPath))
-                reportDirs.Add((sourceReportsPath, "project"));
+            if (Directory.Exists(sourceReportsPath) && sourceReportsPath != repoReportsPath)
+            {
+                _reports.AddRange(ScanDirectory(sourceReportsPath, projectName, "source"));
+            }
         }
+    }
 
-        _reports = reportDirs
-            .SelectMany(dir => Directory.GetFiles(dir.DirPath, "*.md")
-                .Select(f => new FileInfo(f))
-                .Select(fi => new ReportFile
-                {
-                    Name = fi.Name,
-                    FilePath = fi.FullName,
-                    LastModified = fi.LastWriteTimeUtc,
-                    Size = fi.Length,
-                    Location = dir.Label
-                }))
-            .DistinctBy(r => r.Name)
+    private static List<ReportFile> ScanDirectory(string dirPath, string projectName, string? location = null)
+    {
+        if (!Directory.Exists(dirPath)) return new();
+
+        return Directory.GetFiles(dirPath, "*.md")
+            .Select(f => new FileInfo(f))
+            .Select(fi => new ReportFile
+            {
+                Name = fi.Name,
+                FilePath = fi.FullName,
+                LastModified = fi.LastWriteTimeUtc,
+                Size = fi.Length,
+                Location = location ?? "project",
+                ProjectName = projectName
+            })
             .OrderByDescending(r => r.LastModified)
             .ToList();
-
-        _selectedReport = null;
-        StateHasChanged();
     }
 
     private void SelectReport(string path) => _selectedReport = _selectedReport == path ? null : path;

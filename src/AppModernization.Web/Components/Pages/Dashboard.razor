@@ -29,6 +29,13 @@
                     <br />
                     <span class="text-muted small">📂 @StateService.CurrentProject.SourcePath</span>
                 }
+                @if (StateService.GetCurrentProjectReportsPath() is not null)
+                {
+                    <br />
+                    <a href="/reports" class="btn btn-sm btn-outline-info ms-0 mt-1">
+                        📊 View Reports
+                    </a>
+                }
             </div>
             <div class="text-end">
                 <div class="h4 mb-0 text-primary">@StateService.GetProgress().ToString("F0")%</div>
