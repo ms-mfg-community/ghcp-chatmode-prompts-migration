@@ -1,0 +1,267 @@
+@page "/reports"
+@rendermode InteractiveServer
+@using System.IO
+@inject IWebHostEnvironment Env
+@inject Services.MigrationStateService StateService
+@inject Services.ProjectPersistenceService PersistenceService
+
+<PageTitle>Reports — App Modernization</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">📊 Reports</h2>
+            @if (StateService.CurrentProject is not null)
+            {
+                <small class="text-muted">Project: @StateService.CurrentProject.Name</small>
+            }
+        </div>
+        <div class="d-flex gap-2">
+            <div class="btn-group btn-group-sm">
+                <button class="btn @(_viewMode == "current" ? "btn-primary" : "btn-outline-primary")"
+                        @onclick='async () => await SwitchView("current")'
+                        disabled="@(StateService.CurrentProject is null)">
+                    Current Project
+                </button>
+                <button class="btn @(_viewMode == "all" ? "btn-primary" : "btn-outline-primary")"
+                        @onclick='async () => await SwitchView("all")'>
+                    All Projects
+                </button>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshReportsAsync">
+                🔄 Refresh
+            </button>
+        </div>
+    </div>
+    
+    <div class="mb-3">
+        <input type="text" class="form-control" placeholder="Search reports..." 
+               @bind="_searchFilter" @bind:event="oninput" />
+    </div>
+
+    @if (_reports.Any())
+    {
+        @if (_viewMode == "all")
+        {
+            @* Group by project *@
+            @foreach (var group in FilteredReports.GroupBy(r => r.ProjectName))
+            {
+                <h6 class="text-muted mt-3 mb-2">📁 @group.Key</h6>
+                <div class="list-group mb-3">
+                    @foreach (var report in group)
+                    {
+                        <div class="list-group-item d-flex justify-content-between align-items-center @(_selectedReport == report.FilePath ? "active" : "")">
+                            <button class="btn btn-link text-start text-decoration-none flex-grow-1 p-0 @(_selectedReport == report.FilePath ? "text-white" : "")"
+                                    @onclick="() => SelectReport(report.FilePath)">
+                                <strong>@report.Name</strong>
+                                <br />
+                                <small class="@(_selectedReport == report.FilePath ? "text-white-50" : "text-muted")">
+                                    @report.LastModified.ToLocalTime().ToString("MMM d, yyyy h:mm tt") · @FormatSize(report.Size)
+                                </small>
+                            </button>
+                            <div class="d-flex align-items-center" style="gap: 6px;">
+                                <span class="badge bg-primary rounded-pill">MD</span>
+                                @if (_confirmDeleteReport == report.FilePath)
+                                {
+                                    <button class="btn btn-sm btn-danger py-0 px-1" @onclick="async () => await DeleteReportAsync(report.FilePath)">Yes</button>
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-1" @onclick="() => _confirmDeleteReport = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete report" @onclick="() => _confirmDeleteReport = report.FilePath">🗑</button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <div class="list-group">
+                @foreach (var report in FilteredReports)
+                {
+                    <div class="list-group-item d-flex justify-content-between align-items-center @(_selectedReport == report.FilePath ? "active" : "")">
+                        <button class="btn btn-link text-start text-decoration-none flex-grow-1 p-0 @(_selectedReport == report.FilePath ? "text-white" : "")"
+                                @onclick="() => SelectReport(report.FilePath)">
+                            <strong>@report.Name</strong>
+                            <br />
+                            <small class="@(_selectedReport == report.FilePath ? "text-white-50" : "text-muted")">
+                                @report.LastModified.ToLocalTime().ToString("MMM d, yyyy h:mm tt") · @FormatSize(report.Size)
+                            </small>
+                        </button>
+                        <div class="d-flex align-items-center" style="gap: 6px;">
+                            <span class="badge bg-primary rounded-pill">MD</span>
+                            @if (_confirmDeleteReport == report.FilePath)
+                            {
+                                <button class="btn btn-sm btn-danger py-0 px-1" @onclick="async () => await DeleteReportAsync(report.FilePath)">Yes</button>
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-1" @onclick="() => _confirmDeleteReport = null">No</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete report" @onclick="() => _confirmDeleteReport = report.FilePath">🗑</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_selectedReport is not null)
+        {
+            <div class="mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5>@(System.IO.Path.GetFileName(_selectedReport))</h5>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _selectedReport = null">Close</button>
+                </div>
+                <AppModernization.Web.Components.Reports.ReportViewer FilePath="@_selectedReport" />
+            </div>
+        }
+    }
+    else
+    {
+        <div class="text-center text-muted py-5">
+            <div class="mb-3" style="font-size: 2.5rem;">📄</div>
+            <p>No reports generated yet.</p>
+            <p class="small">Reports are created during the migration phases. Start with Phase 0 or Phase 1.</p>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ReportFile> _reports = new();
+    private string? _selectedReport;
+    private string _searchFilter = "";
+    private string _viewMode = "current";
+    private string? _confirmDeleteReport;
+
+    private IEnumerable<ReportFile> FilteredReports =>
+        string.IsNullOrWhiteSpace(_searchFilter)
+            ? _reports
+            : _reports.Where(r => r.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (StateService.CurrentProject is null)
+        {
+            await StateService.EnsureProjectLoadedAsync();
+        }
+        _viewMode = StateService.CurrentProject is not null ? "current" : "all";
+        await RefreshReportsAsync();
+    }
+
+    private async Task SwitchView(string mode)
+    {
+        _viewMode = mode;
+        await RefreshReportsAsync();
+    }
+
+    private async Task RefreshReportsAsync()
+    {
+        _reports.Clear();
+        _selectedReport = null;
+
+        if (_viewMode == "current" && StateService.CurrentProject is not null)
+        {
+            // Show reports for current project only
+            var reportsPath = StateService.GetCurrentProjectReportsPath();
+            if (reportsPath is not null && Directory.Exists(reportsPath))
+            {
+                _reports = ScanDirectory(reportsPath, StateService.CurrentProject.Name);
+            }
+
+            // Also include legacy repo-level reports and source-path reports
+            AddLegacyReports(StateService.CurrentProject.Name);
+        }
+        else
+        {
+            // Show reports from all projects
+            await LoadAllProjectReportsAsync();
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task LoadAllProjectReportsAsync()
+    {
+        var projects = await PersistenceService.ListProjectsAsync();
+        foreach (var project in projects)
+        {
+            var reportsPath = PersistenceService.GetProjectReportsPath(project.Id);
+            if (Directory.Exists(reportsPath))
+            {
+                _reports.AddRange(ScanDirectory(reportsPath, project.Name));
+            }
+        }
+
+        // Also include legacy repo-level reports
+        AddLegacyReports("Shared");
+
+        _reports = _reports.OrderByDescending(r => r.LastModified).ToList();
+    }
+
+    private void AddLegacyReports(string projectName)
+    {
+        // Repo-level reports
+        var repoReportsPath = System.IO.Path.GetFullPath(
+            System.IO.Path.Combine(Env.ContentRootPath, "..", "..", "reports"));
+        if (Directory.Exists(repoReportsPath))
+        {
+            _reports.AddRange(ScanDirectory(repoReportsPath, projectName, "repo"));
+        }
+
+        // Source project reports
+        var sourcePath = StateService.CurrentProject?.SourcePath;
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            var sourceReportsPath = System.IO.Path.Combine(sourcePath, "reports");
+            if (Directory.Exists(sourceReportsPath) && sourceReportsPath != repoReportsPath)
+            {
+                _reports.AddRange(ScanDirectory(sourceReportsPath, projectName, "source"));
+            }
+        }
+    }
+
+    private static List<ReportFile> ScanDirectory(string dirPath, string projectName, string? location = null)
+    {
+        if (!Directory.Exists(dirPath)) return new();
+
+        return Directory.GetFiles(dirPath, "*.md")
+            .Select(f => new FileInfo(f))
+            .Select(fi => new ReportFile
+            {
+                Name = fi.Name,
+                FilePath = fi.FullName,
+                LastModified = fi.LastWriteTimeUtc,
+                Size = fi.Length,
+                Location = location ?? "project",
+                ProjectName = projectName
+            })
+            .OrderByDescending(r => r.LastModified)
+            .ToList();
+    }
+
+    private async Task DeleteReportAsync(string filePath)
+    {
+        _confirmDeleteReport = null;
+        if (_selectedReport == filePath) _selectedReport = null;
+
+        try
+        {
+            if (File.Exists(filePath))
+                File.Delete(filePath);
+        }
+        catch { /* ignore file access errors */ }
+
+        await RefreshReportsAsync();
+    }
+
+    private void SelectReport(string path) => _selectedReport = _selectedReport == path ? null : path;
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes >= 1048576) return $"{bytes / 1048576.0:F1} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
+    }
+}

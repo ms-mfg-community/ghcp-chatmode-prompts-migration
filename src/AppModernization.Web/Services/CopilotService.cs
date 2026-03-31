@@ -1,0 +1,357 @@
+using System.Collections.Concurrent;
+using AppModernization.Web.Models;
+using GitHub.Copilot.SDK;
+
+namespace AppModernization.Web.Services;
+
+/// <summary>
+/// Singleton service wrapping the GitHub Copilot SDK.
+/// Manages CopilotClient lifecycle and sessions.
+/// </summary>
+public class CopilotService : IAsyncDisposable
+{
+    private readonly AgentPromptService _agentPromptService;
+    private readonly ILogger<CopilotService> _logger;
+    private CopilotClient? _client;
+    private readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private bool _initialized;
+    private string? _currentCwd;
+
+    // Maps phase ID → session ID (so we can find existing sessions for a phase)
+    private readonly ConcurrentDictionary<string, string> _phaseSessionMap = new();
+
+    // Stores message history per session for reconnect
+    private readonly ConcurrentDictionary<string, List<ChatMessage>> _messageHistory = new();
+
+    /// <summary>
+    /// Event fired when a chat message (or streaming delta) is received.
+    /// The string key is the session ID.
+    /// </summary>
+    public event Action<string, ChatMessage>? OnMessageReceived;
+
+    /// <summary>
+    /// Event fired when a session becomes idle (all processing complete).
+    /// </summary>
+    public event Action<string>? OnSessionIdle;
+
+    public CopilotService(AgentPromptService agentPromptService, ILogger<CopilotService> logger)
+    {
+        _agentPromptService = agentPromptService;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Initializes the CopilotClient. Safe to call multiple times.
+    /// If the client was previously initialized but is now dead, resets and reinitializes.
+    /// </summary>
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        if (_initialized && _client is not null) return;
+
+        await _initLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_initialized && _client is not null) return;
+
+            // Reset state if partially initialized (e.g. client died or was disposed)
+            if (_initialized || _client is not null)
+            {
+                _logger.LogWarning("CopilotClient in stale state (_initialized={Initialized}, _client={ClientNull}). Resetting.", _initialized, _client is null ? "null" : "not null");
+                await CleanupClientAsync();
+            }
+
+            _client = new CopilotClient(new CopilotClientOptions
+            {
+                AutoStart = true,
+                UseStdio = true
+            });
+
+            await _client.StartAsync();
+            _initialized = true;
+            _logger.LogInformation("CopilotClient started successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start CopilotClient");
+            await CleanupClientAsync();
+            throw;
+        }
+        finally
+        {
+            _initLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Resets the service so the next InitializeAsync call will create a fresh client.
+    /// </summary>
+    public async Task ResetAsync()
+    {
+        await _initLock.WaitAsync();
+        try
+        {
+            await CleanupClientAsync();
+            _logger.LogInformation("CopilotService reset for reinitialization");
+        }
+        finally
+        {
+            _initLock.Release();
+        }
+    }
+
+    private async Task CleanupClientAsync()
+    {
+        _initialized = false;
+        if (_client is not null)
+        {
+            try { await _client.StopAsync(); } catch { /* best-effort */ }
+            try { await _client.DisposeAsync(); } catch { /* best-effort */ }
+            _client = null;
+        }
+    }
+
+    /// <summary>
+    /// Creates a new CopilotSession for the given migration phase.
+    /// The agent prompt is loaded from the .md file and injected as a system message in Append mode.
+    /// Synchronized to prevent concurrent client restarts.
+    /// </summary>
+    public async Task<string> CreateSessionForPhaseAsync(PhaseInfo phase, string? workingDirectory = null, CancellationToken cancellationToken = default)
+    {
+        // Check if we already have a session for this phase
+        var existingSessionId = GetSessionForPhase(phase.Id);
+        if (existingSessionId is not null)
+        {
+            _logger.LogInformation("Reusing existing session {SessionId} for phase {PhaseId}", existingSessionId, phase.Id);
+            return existingSessionId;
+        }
+
+        // Serialize all session creation to prevent concurrent client restarts
+        await _initLock.WaitAsync(cancellationToken);
+        try
+        {
+            // Double-check after acquiring lock
+            existingSessionId = GetSessionForPhase(phase.Id);
+            if (existingSessionId is not null)
+            {
+                _logger.LogInformation("Reusing existing session {SessionId} for phase {PhaseId} (found after lock)", existingSessionId, phase.Id);
+                return existingSessionId;
+            }
+
+            if (_client is null)
+                throw new InvalidOperationException("CopilotClient not initialized. Call InitializeAsync first.");
+
+            var agentPrompt = _agentPromptService.GetAgentPrompt(phase.AgentFile);
+
+            // Only restart the client if the CWD actually changed
+            if (!string.IsNullOrWhiteSpace(workingDirectory) && Directory.Exists(workingDirectory)
+                && !string.Equals(_currentCwd, workingDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Setting Copilot working directory to: {Cwd}", workingDirectory);
+
+                if (_initialized)
+                {
+                    try { await _client.StopAsync(); } catch { /* ignore */ }
+                    _initialized = false;
+                }
+
+                _client = new CopilotClient(new CopilotClientOptions
+                {
+                    AutoStart = true,
+                    UseStdio = true,
+                    Cwd = workingDirectory
+                });
+                await _client.StartAsync();
+                _initialized = true;
+                _currentCwd = workingDirectory;
+
+                // Brief pause after restart to let auth handshake complete
+                await Task.Delay(500, cancellationToken);
+            }
+
+            var session = await _client.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                Streaming = true,
+                SystemMessage = new SystemMessageConfig
+                {
+                    Mode = SystemMessageMode.Append,
+                    Content = agentPrompt
+                }
+            });
+
+            var sessionId = session.SessionId;
+            _sessions[sessionId] = session;
+            _phaseSessionMap[phase.Id] = sessionId;
+            _messageHistory[sessionId] = new List<ChatMessage>();
+
+            // Wire up event handlers
+            session.On(evt =>
+            {
+                switch (evt)
+                {
+                    case AssistantMessageDeltaEvent delta:
+                        // Skip empty deltas (e.g. tool execution start/complete signals)
+                        if (!string.IsNullOrEmpty(delta.Data.DeltaContent))
+                        {
+                            OnMessageReceived?.Invoke(sessionId, new ChatMessage
+                            {
+                                Role = "assistant",
+                                Content = delta.Data.DeltaContent,
+                                IsStreaming = true
+                            });
+                        }
+                        break;
+
+                    case AssistantMessageEvent msg:
+                        // Skip empty assistant messages (e.g. tool execution wrappers)
+                        if (!string.IsNullOrWhiteSpace(msg.Data.Content))
+                        {
+                            var chatMsg = new ChatMessage
+                            {
+                                Role = "assistant",
+                                Content = msg.Data.Content,
+                                IsStreaming = false
+                            };
+                            // Store in history for reconnect
+                            if (_messageHistory.TryGetValue(sessionId, out var hist))
+                            {
+                                lock (hist) { hist.Add(chatMsg); }
+                            }
+                            OnMessageReceived?.Invoke(sessionId, chatMsg);
+                        }
+                        // Don't signal idle for empty messages — wait for real SessionIdleEvent
+                        break;
+
+                    case SessionIdleEvent:
+                        _logger.LogDebug("Session {SessionId} is idle", sessionId);
+                        OnSessionIdle?.Invoke(sessionId);
+                        break;
+
+                    case SessionErrorEvent error:
+                        _logger.LogError("Session {SessionId} error: {Message}", sessionId, error.Data.Message);
+                        OnMessageReceived?.Invoke(sessionId, new ChatMessage
+                        {
+                            Role = "system",
+                            Content = $"Error: {error.Data.Message}",
+                            IsStreaming = false
+                        });
+                        break;
+                }
+            });
+
+            _logger.LogInformation("Created session {SessionId} for phase {PhaseId}", sessionId, phase.Id);
+            return sessionId;
+        }
+        finally
+        {
+            _initLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Sends a user message to the specified session.
+    /// Responses arrive via the OnMessageReceived event.
+    /// </summary>
+    public async Task SendMessageAsync(string sessionId, string message, CancellationToken cancellationToken = default)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+            throw new InvalidOperationException($"Session {sessionId} not found.");
+
+        _logger.LogDebug("Sending message to session {SessionId}: {Message}", sessionId, message[..Math.Min(message.Length, 100)]);
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = message
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Sends a message and waits for the complete response.
+    /// </summary>
+    public async Task SendAndWaitAsync(string sessionId, string message, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var session))
+            throw new InvalidOperationException($"Session {sessionId} not found.");
+
+        _logger.LogDebug("SendAndWait to session {SessionId}: {Message}", sessionId, message[..Math.Min(message.Length, 100)]);
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = message
+        }, timeout, cancellationToken);
+    }
+
+    /// <summary>
+    /// Checks if a session exists and is active.
+    /// </summary>
+    public bool HasSession(string sessionId) => _sessions.ContainsKey(sessionId);
+
+    /// <summary>
+    /// Gets the existing session ID for a phase, or null if none exists.
+    /// </summary>
+    public string? GetSessionForPhase(string phaseId)
+    {
+        return _phaseSessionMap.TryGetValue(phaseId, out var sessionId) && _sessions.ContainsKey(sessionId)
+            ? sessionId
+            : null;
+    }
+
+    /// <summary>
+    /// Returns a copy of the stored message history for a session.
+    /// </summary>
+    public List<ChatMessage> GetMessageHistory(string sessionId)
+    {
+        if (_messageHistory.TryGetValue(sessionId, out var history))
+        {
+            lock (history) { return new List<ChatMessage>(history); }
+        }
+        return new List<ChatMessage>();
+    }
+
+    /// <summary>
+    /// Stores a message in the session history (called from ChatPanel for user messages).
+    /// </summary>
+    public void AddToHistory(string sessionId, ChatMessage message)
+    {
+        if (_messageHistory.TryGetValue(sessionId, out var hist))
+        {
+            lock (hist) { hist.Add(message); }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var (id, session) in _sessions)
+        {
+            try
+            {
+                await session.DisposeAsync();
+                _logger.LogDebug("Disposed session {SessionId}", id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error disposing session {SessionId}", id);
+            }
+        }
+        _sessions.Clear();
+
+        if (_client is not null)
+        {
+            try
+            {
+                await _client.StopAsync();
+                await _client.DisposeAsync();
+                _logger.LogInformation("CopilotClient stopped and disposed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error disposing CopilotClient");
+            }
+            _client = null;
+        }
+
+        _initialized = false;
+        _initLock.Dispose();
+    }
+}

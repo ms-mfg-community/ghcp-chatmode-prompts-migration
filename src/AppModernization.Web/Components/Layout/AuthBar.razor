@@ -1,0 +1,181 @@
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Authorization
+
+<AuthorizeView>
+    <Authorized>
+        <div class="d-flex align-items-center gap-2">
+            <img src="@context.User.FindFirst("urn:github:avatar")?.Value"
+                 alt="avatar" class="rounded-circle" width="28" height="28"
+                 onerror="this.style.display='none'" />
+            <span class="fw-semibold small">@context.User.Identity?.Name</span>
+            @{
+                var method = context.User.FindFirst("urn:github:auth_method")?.Value;
+            }
+            <span class="badge bg-secondary-subtle text-secondary small">@(method ?? "session")</span>
+            <a href="/auth/logout" class="btn btn-sm btn-outline-secondary ms-1">Sign out</a>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="d-flex align-items-center gap-2">
+            @* Help tooltip *@
+            <div class="position-relative" @onmouseenter="() => _showHelp = true" @onmouseleave="() => _showHelp = false">
+                <button class="btn btn-sm btn-outline-secondary rounded-circle" style="width:28px; height:28px; padding:0; font-size:0.8rem;" title="Authentication help">?</button>
+                @if (_showHelp)
+                {
+                    <div class="auth-help-popover position-absolute end-0 mt-1 p-3 bg-white border rounded shadow-lg" style="width: 380px; z-index: 1050;">
+                        <h6 class="fw-bold mb-2">🔐 Authentication Options</h6>
+
+                        <div class="mb-3">
+                            <strong class="text-primary">Option 1: GitHub OAuth App</strong>
+                            <p class="small text-muted mb-1">Best for teams. Can be owned by a <strong>personal account</strong> or an <strong>organization</strong>.</p>
+                            <ul class="small text-muted mt-1 mb-0 ps-3">
+                                <li>Personal: <a href="https://github.com/settings/developers" target="_blank">github.com/settings/developers</a></li>
+                                <li>Organization: <code>github.com/organizations/{org}/settings/applications</code></li>
+                                <li>Callback URL: <code>https://localhost:7292/signin-github</code></li>
+                                <li>Or use <code>./setup.ps1</code> to automate this setup</li>
+                            </ul>
+                            <div class="small mt-1"><strong>Tip:</strong> Org-owned apps are recommended for teams — ownership isn't tied to one person's account.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <strong class="text-success">Option 2: GitHub App</strong>
+                            <p class="small text-muted mb-0">Enterprise-grade. Create at:</p>
+                            <a href="https://github.com/settings/apps" target="_blank" class="small">github.com/settings/apps</a>
+                            <ul class="small text-muted mt-1 mb-0 ps-3">
+                                <li>Callback URL: <code>https://localhost:7292/signin-github</code></li>
+                                <li>Check ✅ "Request user authorization (OAuth)" under General</li>
+                                <li>Same Client ID / Client Secret configuration as OAuth App</li>
+                            </ul>
+                            <div class="small mt-1"><strong>Required permissions:</strong></div>
+                            <ul class="small text-muted mb-0 ps-3">
+                                <li>Account permissions → Email addresses: <strong>Read-only</strong></li>
+                                <li>Account permissions → Profile: <strong>Read-only</strong> (implicit)</li>
+                            </ul>
+                        </div>
+
+                        <div class="mb-2">
+                            <strong class="text-warning">Option 3: Personal Access Token (PAT)</strong>
+                            <p class="small text-muted mb-0">Quickest setup. Generate at:</p>
+                            <a href="https://github.com/settings/tokens?type=beta" target="_blank" class="small">github.com/settings/tokens</a>
+                            <div class="small mt-1"><strong>Token owner:</strong> Your personal GitHub account (not an organization). No repo access needed.</div>
+                            <div class="small mt-1"><strong>Fine-grained token settings:</strong></div>
+                            <ul class="small text-muted mb-0 ps-3">
+                                <li>Resource owner: <strong>yourself</strong> (your personal account)</li>
+                                <li>Repository access: see tiers below</li>
+                            </ul>
+                            <div class="small mt-1"><em>Minimum (login + Copilot chat only):</em></div>
+                            <ul class="small text-muted mb-0 ps-3">
+                                <li>Repository access: <strong>No repositories</strong></li>
+                                <li>Account → Copilot Chat: <strong>Read-only</strong></li>
+                                <li>Account → Copilot Requests: <strong>Read &amp; write</strong></li>
+                                <li>Account → Profile: <strong>Read-only</strong></li>
+                            </ul>
+                            <div class="small mt-1"><em>Recommended (full features — PRs, issues, branches):</em></div>
+                            <ul class="small text-muted mb-0 ps-3">
+                                <li>Repository access: <strong>Select repositories</strong> (your migration target repos)</li>
+                                <li>Repo → Contents: <strong>Read &amp; write</strong> (read/push code)</li>
+                                <li>Repo → Pull requests: <strong>Read &amp; write</strong> (create PRs)</li>
+                                <li>Repo → Issues: <strong>Read &amp; write</strong> (create issues)</li>
+                                <li>Repo → Metadata: <strong>Read-only</strong> (required with any repo access)</li>
+                                <li>Repo → Workflows: <strong>Read &amp; write</strong> (create CI/CD workflows)</li>
+                                <li>Account → Copilot Chat: <strong>Read-only</strong></li>
+                                <li>Account → Copilot Requests: <strong>Read &amp; write</strong></li>
+                                <li>Account → Profile: <strong>Read-only</strong></li>
+                            </ul>
+                            <div class="small mt-1"><strong>Classic token scopes:</strong></div>
+                            <ul class="small text-muted mb-0 ps-3">
+                                <li>Minimum: <code>read:user</code>, <code>copilot</code></li>
+                                <li>Recommended: <code>repo</code>, <code>workflow</code>, <code>read:user</code>, <code>copilot</code></li>
+                            </ul>
+                            <p class="small text-muted mt-1 mb-0">Paste into the PAT field and click "Go"</p>
+                        </div>
+
+                        <hr class="my-2" />
+                        <p class="small text-muted mb-0">
+                            <strong>Copilot SDK</strong> also requires a GitHub Copilot subscription
+                            and the <a href="https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli" target="_blank">Copilot CLI</a> installed locally.
+                        </p>
+                    </div>
+                }
+            </div>
+
+            @* OAuth login — only shown when configured *@
+            @if (_oauthConfigured)
+            {
+                <a href="/auth/login" class="btn btn-sm btn-dark">
+                    Sign in with GitHub
+                </a>
+                <span class="text-muted small">or</span>
+            }
+            else
+            {
+                @* Setup nudge when OAuth not configured *@
+                <div class="position-relative" @onmouseenter="() => _showSetup = true" @onmouseleave="() => _showSetup = false">
+                    <span class="badge bg-warning-subtle text-warning-emphasis" style="cursor: help;">⚠ OAuth not configured</span>
+                    @if (_showSetup)
+                    {
+                        <div class="position-absolute end-0 mt-1 p-3 bg-white border rounded shadow-lg" style="width: 420px; z-index: 1050; font-size: 0.875rem;">
+                            <h6 class="fw-bold mb-2">🔧 Enable GitHub OAuth Sign-In</h6>
+                            <p class="small text-muted mb-2">To enable the "Sign in with GitHub" button, configure an OAuth App or GitHub App:</p>
+
+                            <div class="mb-2">
+                                <strong>Step 1:</strong> Create an OAuth App at
+                                <a href="https://github.com/settings/developers" target="_blank">github.com/settings/developers</a>
+                            </div>
+                            <div class="mb-2 ps-3">
+                                <table class="table table-sm table-borderless mb-0" style="font-size: 0.8rem;">
+                                    <tr><td class="text-muted pe-2">App name:</td><td><code>App Modernization Wizard</code></td></tr>
+                                    <tr><td class="text-muted pe-2">Homepage:</td><td><code>https://localhost:7292</code></td></tr>
+                                    <tr><td class="text-muted pe-2">Callback:</td><td><code>https://localhost:7292/signin-github</code></td></tr>
+                                </table>
+                            </div>
+
+                            <div class="mb-2">
+                                <strong>Step 2:</strong> Add credentials via user-secrets (recommended):
+                            </div>
+                            <pre class="bg-dark text-light p-2 rounded mb-2" style="font-size: 0.75rem; white-space: pre-wrap;">cd src/AppModernization.Web
+dotnet user-secrets set "GitHub:ClientId" "your-id"
+dotnet user-secrets set "GitHub:ClientSecret" "your-secret"</pre>
+
+                            <div class="mb-2">
+                                Or set in <code>appsettings.json</code>:
+                            </div>
+                            <pre class="bg-dark text-light p-2 rounded mb-2" style="font-size: 0.75rem;">"GitHub": { "ClientId": "...", "ClientSecret": "..." }</pre>
+
+                            <div>
+                                <strong>Step 3:</strong> Restart the app. The sign-in button will appear automatically.
+                            </div>
+
+                            <hr class="my-2" />
+                            <p class="small text-muted mb-0">
+                                You can still sign in now with a <strong>Personal Access Token</strong> using the field to the right. →
+                            </p>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* PAT inline form — always available *@
+            <form action="/auth/pat-login" method="post" class="d-flex align-items-center gap-1">
+                <input type="password" name="pat" class="form-control form-control-sm"
+                       placeholder="Paste PAT" style="width: 140px; font-size: 0.8rem;"
+                       autocomplete="off" />
+                <button type="submit" class="btn btn-sm btn-outline-primary">Go</button>
+            </form>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _showHelp;
+    private bool _showSetup;
+    private bool _oauthConfigured;
+
+    [Inject] private IConfiguration Configuration { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        _oauthConfigured = !string.IsNullOrWhiteSpace(Configuration["GitHub:ClientId"])
+                        && !string.IsNullOrWhiteSpace(Configuration["GitHub:ClientSecret"]);
+    }
+}

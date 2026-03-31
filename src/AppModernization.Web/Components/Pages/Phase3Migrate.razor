@@ -1,0 +1,146 @@
+@page "/phase3/migrate"
+@rendermode InteractiveServer
+@using AppModernization.Web.Models
+@using AppModernization.Web.Components.Wizard
+@inject Services.MigrationStateService StateService
+@inject NavigationManager Navigation
+
+<PageTitle>Phase 3: Migrate Code — App Modernization</PageTitle>
+
+@if (_phase is not null)
+{
+    <PhasePage Phase="_phase" AutoPrompt="@_autoPrompt" WorkingDirectory="@_workingDirectory">
+        <PhaseContent>
+            <div class="mb-4">
+                <h5>🔄 Code Migration</h5>
+                <p>
+                    This phase executes the actual code migration, converting legacy patterns to modern
+                    equivalents while preserving all business logic. The assistant will guide each
+                    migration task and verify correctness.
+                </p>
+            </div>
+
+            <div class="alert alert-warning mb-4">
+                <strong>⚠️ Important:</strong> Create backups of your source code before starting migration.
+                Ensure your source repository is committed and pushed to a remote before proceeding.
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h6 class="card-title">Migration Tasks</h6>
+                    <ul class="mb-0">
+                        <li>Framework upgrade</li>
+                        <li>Configuration transformation</li>
+                        <li>Service migration (WCF → REST)</li>
+                        <li>Auth modernization (→ Entra ID)</li>
+                        <li>Database access modernization</li>
+                        <li>Containerization</li>
+                    </ul>
+                </div>
+            </div>
+
+            @if (_phase.Status == PhaseStatus.NotStarted)
+            {
+                <div class="text-center py-3">
+                    <p class="text-muted mb-3">
+                        Use the chat panel on the right to interact with the migration assistant.
+                        Click <strong>Get Started</strong> to begin.
+                    </p>
+                    <button class="btn btn-primary btn-lg" @onclick="StartPhase">
+                        🚀 Get Started
+                    </button>
+                </div>
+            }
+        </PhaseContent>
+        <PhaseActions>
+            <div class="d-flex justify-content-between">
+                <a href="/phase2/assess" class="btn btn-outline-secondary">← Previous</a>
+                <div>
+                    <button class="btn btn-outline-secondary me-2" @onclick="SkipPhase">Skip</button>
+                    <button class="btn btn-success" @onclick="CompletePhase"
+                            disabled="@(_phase.Status != PhaseStatus.InProgress)">
+                        Complete & Continue →
+                    </button>
+                </div>
+            </div>
+        </PhaseActions>
+    </PhasePage>
+}
+else
+{
+    <div class="text-center py-5">
+        <h4 class="text-muted">No active project</h4>
+        <p>Please start a new migration project first.</p>
+        <a href="/" class="btn btn-primary">Go to Home</a>
+    </div>
+}
+
+@code {
+    private PhaseInfo? _phase;
+    private string? _autoPrompt;
+    private string? _workingDirectory;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (StateService.CurrentProject is null)
+        {
+            if (!await StateService.EnsureProjectLoadedAsync())
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
+        }
+
+        _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase3-migrate");
+        _workingDirectory = StateService.CurrentProject?.SourcePath;
+
+        if (_phase?.Status == PhaseStatus.InProgress)
+        {
+            BuildAutoPrompt();
+        }
+    }
+
+    private async Task StartPhase()
+    {
+        if (_phase is null) return;
+        await StateService.StartPhaseAsync(_phase.Id);
+        BuildAutoPrompt();
+        StateHasChanged();
+    }
+
+    private void BuildAutoPrompt()
+    {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
+        var slug = StateService.GetProjectSlug();
+        var sourcePath = StateService.CurrentProject?.SourcePath;
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            _autoPrompt = $"Begin code migration for the application at: {sourcePath}\n" +
+                $"Read the assessment report at {reportsDir}/{slug}-Application-Assessment-Report.md for context.\n" +
+                "Create a backup, then start migrating the code to the target framework.\n" +
+                "Make small, testable, incremental changes.";
+        }
+        else
+        {
+            _autoPrompt = "Begin code migration for the application.\n" +
+                $"Read the assessment report at {reportsDir}/{slug}-Application-Assessment-Report.md for context.\n" +
+                "Create a backup, then start migrating the code to the target framework.\n" +
+                "Make small, testable, incremental changes.";
+        }
+    }
+
+    private async Task SkipPhase()
+    {
+        if (_phase is null) return;
+        await StateService.SkipPhaseAsync(_phase.Id);
+        Navigation.NavigateTo("/phase4/infra");
+    }
+
+    private async Task CompletePhase()
+    {
+        if (_phase is null) return;
+        await StateService.CompletePhaseAsync(_phase.Id);
+        Navigation.NavigateTo("/phase4/infra");
+    }
+}

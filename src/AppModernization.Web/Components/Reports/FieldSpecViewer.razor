@@ -1,0 +1,310 @@
+@rendermode InteractiveServer
+
+<div class="field-spec-viewer">
+    @if (_parseError || !_fields.Any())
+    {
+        @if (!string.IsNullOrEmpty(_rawMarkdown))
+        {
+            <div class="alert alert-info mb-3">
+                <small>Could not parse field specification table. Showing raw content.</small>
+            </div>
+            <AppModernization.Web.Components.Reports.ReportViewer MarkdownContent="@_rawMarkdown" />
+        }
+        else
+        {
+            <div class="text-center text-muted py-4">
+                <p>No field specification data available.</p>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="row mb-3 g-2">
+            <div class="col-md-6">
+                <input type="text" class="form-control form-control-sm" placeholder="Search field names..."
+                       @bind="_searchFilter" @bind:event="oninput" />
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="_confidenceFilter">
+                    <option value="">All Confidence</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+            </div>
+            <div class="col-md-3 text-end text-muted small align-self-center">
+                @FilteredFields.Count() of @_fields.Count fields
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th role="button" @onclick='() => ToggleSort("FieldName")'>
+                            Field Name @SortIndicator("FieldName")
+                        </th>
+                        <th role="button" @onclick='() => ToggleSort("DisplayLabel")'>
+                            Display Label @SortIndicator("DisplayLabel")
+                        </th>
+                        <th role="button" @onclick='() => ToggleSort("DataType")'>
+                            Data Type @SortIndicator("DataType")
+                        </th>
+                        <th role="button" @onclick='() => ToggleSort("Required")'>
+                            Required @SortIndicator("Required")
+                        </th>
+                        <th role="button" @onclick='() => ToggleSort("MaxLength")'>
+                            Max Length @SortIndicator("MaxLength")
+                        </th>
+                        <th role="button" @onclick='() => ToggleSort("Confidence")'>
+                            Confidence @SortIndicator("Confidence")
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var field in FilteredFields)
+                    {
+                        <tr>
+                            <td><code>@field.FieldName</code></td>
+                            <td>@field.DisplayLabel</td>
+                            <td><span class="badge bg-secondary">@field.DataType</span></td>
+                            <td>
+                                @if (field.Required)
+                                {
+                                    <span class="badge bg-danger">Yes</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-dark">No</span>
+                                }
+                            </td>
+                            <td>@(field.MaxLength > 0 ? field.MaxLength.ToString() : "—")</td>
+                            <td>
+                                <span class="badge @GetConfidenceBadgeClass(field.Confidence)">
+                                    @field.Confidence
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? FilePath { get; set; }
+    [Parameter] public string? MarkdownContent { get; set; }
+
+    private List<FieldSpec> _fields = new();
+    private string _rawMarkdown = "";
+    private bool _parseError;
+    private string _searchFilter = "";
+    private string _confidenceFilter = "";
+    private string _sortColumn = "FieldName";
+    private bool _sortAscending = true;
+
+    private IEnumerable<FieldSpec> FilteredFields
+    {
+        get
+        {
+            var result = _fields.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(_searchFilter))
+                result = result.Where(f =>
+                    f.FieldName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
+                    f.DisplayLabel.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(_confidenceFilter))
+                result = result.Where(f =>
+                    f.Confidence.Equals(_confidenceFilter, StringComparison.OrdinalIgnoreCase));
+
+            result = _sortColumn switch
+            {
+                "FieldName" => _sortAscending ? result.OrderBy(f => f.FieldName) : result.OrderByDescending(f => f.FieldName),
+                "DisplayLabel" => _sortAscending ? result.OrderBy(f => f.DisplayLabel) : result.OrderByDescending(f => f.DisplayLabel),
+                "DataType" => _sortAscending ? result.OrderBy(f => f.DataType) : result.OrderByDescending(f => f.DataType),
+                "Required" => _sortAscending ? result.OrderBy(f => f.Required) : result.OrderByDescending(f => f.Required),
+                "MaxLength" => _sortAscending ? result.OrderBy(f => f.MaxLength) : result.OrderByDescending(f => f.MaxLength),
+                "Confidence" => _sortAscending ? result.OrderBy(f => f.Confidence) : result.OrderByDescending(f => f.Confidence),
+                _ => result.OrderBy(f => f.FieldName)
+            };
+
+            return result;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        _fields.Clear();
+        _parseError = false;
+        _rawMarkdown = "";
+
+        try
+        {
+            string? markdown = MarkdownContent;
+
+            if (string.IsNullOrEmpty(markdown) && !string.IsNullOrEmpty(FilePath))
+            {
+                if (File.Exists(FilePath))
+                    markdown = File.ReadAllText(FilePath);
+            }
+
+            if (string.IsNullOrEmpty(markdown))
+                return;
+
+            _rawMarkdown = markdown;
+            _fields = ParseFieldSpecTable(markdown);
+
+            if (!_fields.Any())
+                _parseError = true;
+        }
+        catch
+        {
+            _parseError = true;
+        }
+    }
+
+    private static List<FieldSpec> ParseFieldSpecTable(string markdown)
+    {
+        var fields = new List<FieldSpec>();
+        var lines = markdown.Split('\n', StringSplitOptions.None);
+
+        // Find table header row containing expected columns
+        for (int i = 0; i < lines.Length - 2; i++)
+        {
+            var line = lines[i].Trim();
+            if (!line.StartsWith('|') || !line.EndsWith('|'))
+                continue;
+
+            var headers = SplitTableRow(line);
+            if (headers.Count < 3)
+                continue;
+
+            // Check if this looks like a field spec header
+            var headerLower = string.Join(" ", headers).ToLowerInvariant();
+            if (!headerLower.Contains("field") && !headerLower.Contains("property") && !headerLower.Contains("name"))
+                continue;
+
+            // Next line should be the separator (|---|---|...)
+            if (i + 1 >= lines.Length)
+                break;
+            var separator = lines[i + 1].Trim();
+            if (!separator.Contains("---"))
+                continue;
+
+            // Map header indices
+            int fieldNameIdx = FindHeaderIndex(headers, "field", "property", "name");
+            int displayLabelIdx = FindHeaderIndex(headers, "display", "label");
+            int dataTypeIdx = FindHeaderIndex(headers, "type", "data type", "datatype");
+            int requiredIdx = FindHeaderIndex(headers, "required", "nullable");
+            int maxLengthIdx = FindHeaderIndex(headers, "max", "length", "size");
+            int confidenceIdx = FindHeaderIndex(headers, "confidence", "accuracy");
+
+            // Parse data rows
+            for (int j = i + 2; j < lines.Length; j++)
+            {
+                var dataLine = lines[j].Trim();
+                if (!dataLine.StartsWith('|') || !dataLine.EndsWith('|'))
+                    break;
+
+                var cells = SplitTableRow(dataLine);
+                if (cells.Count < 2)
+                    continue;
+
+                var spec = new FieldSpec
+                {
+                    FieldName = GetCell(cells, fieldNameIdx),
+                    DisplayLabel = GetCell(cells, displayLabelIdx),
+                    DataType = GetCell(cells, dataTypeIdx),
+                    Required = ParseRequired(GetCell(cells, requiredIdx)),
+                    MaxLength = ParseMaxLength(GetCell(cells, maxLengthIdx)),
+                    Confidence = NormalizeConfidence(GetCell(cells, confidenceIdx))
+                };
+
+                if (!string.IsNullOrWhiteSpace(spec.FieldName))
+                    fields.Add(spec);
+            }
+
+            if (fields.Any())
+                break;
+        }
+
+        return fields;
+    }
+
+    private static List<string> SplitTableRow(string row)
+    {
+        return row.Split('|', StringSplitOptions.None)
+            .Select(c => c.Trim())
+            .Where(c => !string.IsNullOrEmpty(c))
+            .ToList();
+    }
+
+    private static int FindHeaderIndex(List<string> headers, params string[] keywords)
+    {
+        for (int i = 0; i < headers.Count; i++)
+        {
+            var h = headers[i].ToLowerInvariant();
+            if (keywords.Any(k => h.Contains(k)))
+                return i;
+        }
+        return -1;
+    }
+
+    private static string GetCell(List<string> cells, int index) =>
+        index >= 0 && index < cells.Count ? cells[index].Trim() : "";
+
+    private static bool ParseRequired(string value)
+    {
+        var lower = value.ToLowerInvariant().Trim();
+        return lower is "yes" or "true" or "required" or "✓" or "✔" or "x";
+    }
+
+    private static int ParseMaxLength(string value)
+    {
+        var cleaned = new string(value.Where(c => char.IsDigit(c)).ToArray());
+        return int.TryParse(cleaned, out var len) ? len : 0;
+    }
+
+    private static string NormalizeConfidence(string value)
+    {
+        var lower = value.ToLowerInvariant().Trim();
+        if (lower.Contains("high")) return "High";
+        if (lower.Contains("medium") || lower.Contains("med")) return "Medium";
+        if (lower.Contains("low")) return "Low";
+        return string.IsNullOrWhiteSpace(value) ? "Unknown" : value;
+    }
+
+    private void ToggleSort(string column)
+    {
+        if (_sortColumn == column)
+            _sortAscending = !_sortAscending;
+        else
+        {
+            _sortColumn = column;
+            _sortAscending = true;
+        }
+    }
+
+    private string SortIndicator(string column) =>
+        _sortColumn != column ? "" : _sortAscending ? "▲" : "▼";
+
+    private static string GetConfidenceBadgeClass(string confidence) => confidence switch
+    {
+        "High" => "bg-success",
+        "Medium" => "bg-warning text-dark",
+        "Low" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private class FieldSpec
+    {
+        public string FieldName { get; set; } = "";
+        public string DisplayLabel { get; set; } = "";
+        public string DataType { get; set; } = "";
+        public bool Required { get; set; }
+        public int MaxLength { get; set; }
+        public string Confidence { get; set; } = "Unknown";
+    }
+}

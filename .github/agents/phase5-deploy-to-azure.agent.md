@@ -4,6 +4,7 @@ description: >-
   Phase 5: Deploys the migrated application to Azure using Azure Developer CLI (azd),
   with validation, health checks, and comprehensive deployment reporting.
 tools: ['read', 'edit', 'search', 'execute', 'web']
+skills: ['azure-hosting-selection']
 ---
 
 # Phase 5 — Deploy to Azure

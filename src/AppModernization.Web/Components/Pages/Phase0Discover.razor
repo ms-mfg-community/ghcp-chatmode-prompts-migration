@@ -1,0 +1,355 @@
+@page "/phase0/discover"
+@rendermode InteractiveServer
+@using AppModernization.Web.Models
+@using AppModernization.Web.Components.Wizard
+@inject Services.MigrationStateService StateService
+@inject NavigationManager Navigation
+@inject IWebHostEnvironment Env
+
+<PageTitle>Phase 0: Discover — App Modernization</PageTitle>
+
+@if (_phase is not null)
+{
+    <PhasePage Phase="_phase" AutoPrompt="@_autoPrompt" WorkingDirectory="@_workingDirectory">
+        <PhaseContent>
+            <div class="mb-4">
+                <h5>🔍 Discovery Phase</h5>
+                <p>
+                    In this phase, the Copilot assistant will help you analyze your legacy codebase to
+                    understand its structure, dependencies, and business logic before migration planning begins.
+                </p>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h6 class="card-title">What Discovery Does</h6>
+                    <ul class="mb-0">
+                        <li>Analyzes the source code structure and architecture</li>
+                        <li>Maps end-to-end business processes</li>
+                        <li>Identifies external dependencies and integrations</li>
+                        <li>Extracts implicit business rules from code</li>
+                        <li>Documents data flows and storage patterns</li>
+                    </ul>
+                </div>
+            </div>
+
+            @if (StateService.CurrentProject?.SourcePath is not null)
+            {
+                <div class="alert alert-info">
+                    <strong>Source Path:</strong> @StateService.CurrentProject.SourcePath
+                </div>
+            }
+
+            @if (_reportSummaries.Any())
+            {
+                <div class="card mb-4 border-success">
+                    <div class="card-header bg-success-subtle d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">📊 Discovery Reports</h6>
+                        <a href="/reports" class="btn btn-sm btn-outline-success">View All Reports →</a>
+                    </div>
+                    <div class="card-body p-0">
+                        @foreach (var report in _reportSummaries)
+                        {
+                            <div class="p-3 @(report != _reportSummaries.Last() ? "border-bottom" : "")">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <strong class="text-primary">@report.Name</strong>
+                                    <small class="text-muted">@FormatSize(report.Size) · @report.LastModified.ToLocalTime().ToString("MMM d, h:mm tt")</small>
+                                </div>
+                                <p class="text-muted small mb-0">@report.Preview</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (_phase.Status == PhaseStatus.NotStarted)
+            {
+                <div class="text-center py-3">
+                    <p class="text-muted mb-3">
+                        Click <strong>Get Started</strong> to begin analyzing the codebase.
+                    </p>
+                    <button class="btn btn-primary btn-lg" @onclick="StartPhase">
+                        🚀 Get Started
+                    </button>
+                </div>
+            }
+        </PhaseContent>
+        <PhaseActions>
+            <div class="d-flex justify-content-between">
+                <a href="/dashboard" class="btn btn-outline-secondary">
+                    ← Dashboard
+                </a>
+                <div>
+                    <button class="btn btn-outline-secondary me-2"
+                            @onclick="SkipPhase">
+                        Skip
+                    </button>
+                    <button class="btn btn-success"
+                            @onclick="CompletePhase"
+                            disabled="@(_phase.Status != PhaseStatus.InProgress)">
+                        Complete & Continue →
+                    </button>
+                </div>
+            </div>
+        </PhaseActions>
+    </PhasePage>
+}
+else
+{
+    <div class="text-center py-5">
+        <h4 class="text-muted">No active project</h4>
+        <p>Please start a new migration project first.</p>
+        <a href="/" class="btn btn-primary">Go to Home</a>
+    </div>
+}
+
+@code {
+    private PhaseInfo? _phase;
+    private string? _autoPrompt;
+    private string? _workingDirectory;
+    private List<ReportSummary> _reportSummaries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (StateService.CurrentProject is null)
+        {
+            if (!await StateService.EnsureProjectLoadedAsync())
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
+        }
+
+        _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase0-discover");
+        _workingDirectory = StateService.CurrentProject?.SourcePath;
+
+        // Check if all reports exist — auto-complete if phase is still InProgress
+        if (_phase?.Status == PhaseStatus.InProgress && AllReportsExist())
+        {
+            await StateService.CompletePhaseAsync(_phase.Id);
+        }
+
+        // If phase is already in progress (user navigated back), auto-prompt on load
+        if (_phase?.Status == PhaseStatus.InProgress)
+        {
+            BuildAutoPrompt();
+        }
+
+        if (_phase?.Status == PhaseStatus.InProgress || _phase?.Status == PhaseStatus.Completed)
+        {
+            LoadReportSummaries();
+        }
+    }
+
+    private async Task StartPhase()
+    {
+        if (_phase is null) return;
+        await StateService.StartPhaseAsync(_phase.Id);
+        BuildAutoPrompt();
+        StateHasChanged();
+    }
+
+    private void BuildAutoPrompt()
+    {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
+        var slug = StateService.GetProjectSlug();
+        var sourcePath = StateService.CurrentProject?.SourcePath;
+
+        // Check if discovery reports already exist
+        var expectedReports = new[]
+        {
+            $"{slug}-Legacy-Discovery-Report.md",
+            $"{slug}-Business-Requirements.md",
+            $"{slug}-Process-Maps.md"
+        };
+        var existingReports = new List<string>();
+        var missingReports = new List<string>();
+        if (reportsPath is not null)
+        {
+            foreach (var report in expectedReports)
+            {
+                var path = System.IO.Path.Combine(reportsPath, report);
+                if (System.IO.File.Exists(path))
+                    existingReports.Add(report);
+                else
+                    missingReports.Add(report);
+            }
+        }
+        else
+        {
+            missingReports.AddRange(expectedReports);
+        }
+
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            if (existingReports.Count == expectedReports.Length)
+            {
+                // All reports exist — don't re-run full discovery
+                _autoPrompt = $"The discovery phase for the application at {sourcePath} has already been completed.\n\n" +
+                    $"The following reports exist in {reportsDir}/:\n" +
+                    string.Join("\n", existingReports.Select(r => $"- {r}")) + "\n\n" +
+                    "Review these reports and provide a brief summary of key findings. " +
+                    "If the user asks, you can refine or regenerate specific reports.";
+            }
+            else if (existingReports.Count > 0)
+            {
+                // Partial — only generate missing reports
+                _autoPrompt = $"Analyze the legacy application at: {sourcePath}\n\n" +
+                    "Some discovery reports already exist:\n" +
+                    string.Join("\n", existingReports.Select(r => $"- ✅ {r}")) + "\n" +
+                    string.Join("\n", missingReports.Select(r => $"- ❌ {r} (MISSING — generate this)")) + "\n\n" +
+                    $"Only generate the missing reports in {reportsDir}/. Do NOT regenerate existing ones.";
+            }
+            else
+            {
+                // No reports — full discovery
+                _autoPrompt = $"Analyze the legacy application at: {sourcePath}\n\n" +
+                    "Perform a full discovery:\n" +
+                    "1. Scan the codebase and identify all projects, forms, classes, and SQL scripts\n" +
+                    "2. Determine the application type (.NET Framework version, UI technology)\n" +
+                    "3. Map the architecture and component relationships\n" +
+                    "4. Extract business rules from code and stored procedures\n" +
+                    $"5. Document all findings in {reportsDir}/{slug}-Legacy-Discovery-Report.md\n" +
+                    $"6. Document extracted business requirements in {reportsDir}/{slug}-Business-Requirements.md\n" +
+                    $"7. Document process flows in {reportsDir}/{slug}-Process-Maps.md\n\n" +
+                    $"Generate all reports as markdown files in the {reportsDir}/ directory.";
+            }
+        }
+        else
+        {
+            _autoPrompt = $"Start the discovery process. Scan the current workspace, identify the application type and architecture, extract business rules, and generate all discovery reports in the {reportsDir}/ directory.";
+        }
+    }
+
+    private async Task SkipPhase()
+    {
+        if (_phase is null) return;
+        await StateService.SkipPhaseAsync(_phase.Id);
+        Navigation.NavigateTo("/phase0/specify");
+    }
+
+    private async Task CompletePhase()
+    {
+        if (_phase is null) return;
+        await StateService.CompletePhaseAsync(_phase.Id);
+        Navigation.NavigateTo("/phase0/specify");
+    }
+
+    private void LoadReportSummaries()
+    {
+        _reportSummaries.Clear();
+        var slug = StateService.GetProjectSlug();
+        var discoveryReports = new[]
+        {
+            ($"{slug}-Legacy-Discovery-Report.md", "Legacy-Discovery-Report.md"),
+            ($"{slug}-Business-Requirements.md", "Business-Requirements.md"),
+            ($"{slug}-Process-Maps.md", "Process-Maps.md")
+        };
+
+        // Build list of directories to search (in priority order)
+        var searchDirs = new List<string>();
+
+        // 1. Project-scoped reports dir (primary — always checked)
+        var projectReportsPath = StateService.GetCurrentProjectReportsPath();
+        if (projectReportsPath is not null && System.IO.Directory.Exists(projectReportsPath))
+            searchDirs.Add(projectReportsPath);
+
+        // 2. Source project's reports dir — only check for slug-prefixed files
+        //    (un-prefixed files here belong to other/older projects)
+        // 3. Repo-level reports dir — same, only slug-prefixed
+
+        foreach (var (prefixedName, fallbackName) in discoveryReports)
+        {
+            string? filePath = null;
+
+            // Check project-scoped dir for both prefixed and fallback names
+            if (projectReportsPath is not null)
+            {
+                var candidate = System.IO.Path.Combine(projectReportsPath, prefixedName);
+                if (System.IO.File.Exists(candidate)) filePath = candidate;
+                if (filePath is null)
+                {
+                    candidate = System.IO.Path.Combine(projectReportsPath, fallbackName);
+                    if (System.IO.File.Exists(candidate)) filePath = candidate;
+                }
+            }
+
+            // Check source and repo dirs — only for slug-prefixed names to avoid
+            // showing other projects' reports
+            if (filePath is null)
+            {
+                var otherDirs = new List<string>();
+                var sourcePath = StateService.CurrentProject?.SourcePath;
+                if (!string.IsNullOrWhiteSpace(sourcePath))
+                {
+                    var sourceReportsPath = System.IO.Path.Combine(sourcePath, "reports");
+                    if (System.IO.Directory.Exists(sourceReportsPath))
+                        otherDirs.Add(sourceReportsPath);
+                }
+                var repoReportsPath = System.IO.Path.GetFullPath(
+                    System.IO.Path.Combine(Env.ContentRootPath, "..", "..", "reports"));
+                if (System.IO.Directory.Exists(repoReportsPath))
+                    otherDirs.Add(repoReportsPath);
+
+                foreach (var dir in otherDirs)
+                {
+                    var candidate = System.IO.Path.Combine(dir, prefixedName);
+                    if (System.IO.File.Exists(candidate)) { filePath = candidate; break; }
+                }
+            }
+
+            if (filePath is not null)
+            {
+                var fi = new System.IO.FileInfo(filePath);
+                var content = System.IO.File.ReadAllText(filePath);
+                var lines = content.Split('\n')
+                    .Select(l => l.Trim())
+                    .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith('#') && !l.StartsWith("---"))
+                    .Take(3);
+                var preview = string.Join(" ", lines);
+                if (preview.Length > 250) preview = preview[..250] + "…";
+
+                _reportSummaries.Add(new ReportSummary
+                {
+                    Name = System.IO.Path.GetFileName(filePath),
+                    FilePath = filePath,
+                    Size = fi.Length,
+                    LastModified = fi.LastWriteTimeUtc,
+                    Preview = preview
+                });
+            }
+        }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes >= 1048576) return $"{bytes / 1048576.0:F1} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
+    }
+
+    private record ReportSummary
+    {
+        public string Name { get; init; } = "";
+        public string FilePath { get; init; } = "";
+        public long Size { get; init; }
+        public DateTime LastModified { get; init; }
+        public string Preview { get; init; } = "";
+    }
+
+    private bool AllReportsExist()
+    {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        if (reportsPath is null) return false;
+
+        var slug = StateService.GetProjectSlug();
+        var expected = new[]
+        {
+            $"{slug}-Legacy-Discovery-Report.md",
+            $"{slug}-Business-Requirements.md",
+            $"{slug}-Process-Maps.md"
+        };
+        return expected.All(f => System.IO.File.Exists(System.IO.Path.Combine(reportsPath, f)));
+    }
+}

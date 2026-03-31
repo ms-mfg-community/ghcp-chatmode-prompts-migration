@@ -1,0 +1,149 @@
+@page "/phase6/cicd"
+@rendermode InteractiveServer
+@using AppModernization.Web.Models
+@using AppModernization.Web.Components.Wizard
+@inject Services.MigrationStateService StateService
+@inject NavigationManager Navigation
+
+<PageTitle>Phase 6: Setup CI/CD — App Modernization</PageTitle>
+
+@if (_phase is not null)
+{
+    <PhasePage Phase="_phase" AutoPrompt="@_autoPrompt" WorkingDirectory="@_workingDirectory">
+        <PhaseContent>
+            <div class="mb-4">
+                <h5>⚙️ CI/CD Setup</h5>
+                <p>
+                    This final phase configures continuous integration and deployment pipelines
+                    for your modernized application. Choose your preferred pipeline platform
+                    and the assistant will generate the pipeline definitions.
+                </p>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h6 class="card-title mb-3">Pipeline Platform</h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="pipelinePlatform"
+                               id="platform-gha" value="GitHub Actions"
+                               checked="@(_pipelinePlatform == "GitHub Actions")"
+                               @onchange="@(() => _pipelinePlatform = "GitHub Actions")">
+                        <label class="form-check-label" for="platform-gha">GitHub Actions</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="pipelinePlatform"
+                               id="platform-ado" value="Azure DevOps"
+                               checked="@(_pipelinePlatform == "Azure DevOps")"
+                               @onchange="@(() => _pipelinePlatform = "Azure DevOps")">
+                        <label class="form-check-label" for="platform-ado">Azure DevOps</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h6 class="card-title">Pipeline Components</h6>
+                    <ul class="mb-0">
+                        <li>CI pipeline</li>
+                        <li>CD pipeline</li>
+                        <li>Infrastructure pipeline</li>
+                        <li>Security scanning</li>
+                    </ul>
+                </div>
+            </div>
+
+            @if (_phase.Status == PhaseStatus.NotStarted)
+            {
+                <div class="text-center py-3">
+                    <p class="text-muted mb-3">
+                        Use the chat panel on the right to interact with the CI/CD assistant.
+                        Click <strong>Get Started</strong> to begin.
+                    </p>
+                    <button class="btn btn-primary btn-lg" @onclick="StartPhase">
+                        🚀 Get Started
+                    </button>
+                </div>
+            }
+        </PhaseContent>
+        <PhaseActions>
+            <div class="d-flex justify-content-between">
+                <a href="/phase5/deploy" class="btn btn-outline-secondary">← Previous</a>
+                <div>
+                    <button class="btn btn-outline-secondary me-2" @onclick="SkipPhase">Skip</button>
+                    <button class="btn btn-success" @onclick="CompletePhase"
+                            disabled="@(_phase.Status != PhaseStatus.InProgress)">
+                        Complete Migration 🎉
+                    </button>
+                </div>
+            </div>
+        </PhaseActions>
+    </PhasePage>
+}
+else
+{
+    <div class="text-center py-5">
+        <h4 class="text-muted">No active project</h4>
+        <p>Please start a new migration project first.</p>
+        <a href="/" class="btn btn-primary">Go to Home</a>
+    </div>
+}
+
+@code {
+    private PhaseInfo? _phase;
+    private string? _autoPrompt;
+    private string? _workingDirectory;
+    private string _pipelinePlatform = "GitHub Actions";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (StateService.CurrentProject is null)
+        {
+            if (!await StateService.EnsureProjectLoadedAsync())
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
+        }
+
+        _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase6-cicd");
+        _workingDirectory = StateService.CurrentProject?.SourcePath;
+
+        if (_phase?.Status == PhaseStatus.InProgress)
+        {
+            BuildAutoPrompt();
+        }
+    }
+
+    private async Task StartPhase()
+    {
+        if (_phase is null) return;
+        await StateService.StartPhaseAsync(_phase.Id);
+        BuildAutoPrompt();
+        StateHasChanged();
+    }
+
+    private void BuildAutoPrompt()
+    {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
+        var slug = StateService.GetProjectSlug();
+        _autoPrompt = "Set up CI/CD pipelines for the migrated application.\n" +
+            $"Read the deployment and infrastructure reports in {reportsDir}/ for context (filenames are prefixed with {slug}-).\n" +
+            "Generate GitHub Actions workflow files in .github/workflows/.\n" +
+            "Include CI, CD, infrastructure deployment, and security scanning stages.";
+    }
+
+    private async Task SkipPhase()
+    {
+        if (_phase is null) return;
+        await StateService.SkipPhaseAsync(_phase.Id);
+        Navigation.NavigateTo("/dashboard");
+    }
+
+    private async Task CompletePhase()
+    {
+        if (_phase is null) return;
+        await StateService.CompletePhaseAsync(_phase.Id);
+        Navigation.NavigateTo("/dashboard");
+    }
+}

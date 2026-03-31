@@ -1,0 +1,64 @@
+@using Markdig
+
+<div class="report-viewer">
+    @if (!string.IsNullOrEmpty(_htmlContent))
+    {
+        <div class="report-viewer-content p-4">
+            @((MarkupString)_htmlContent)
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="alert alert-danger m-3">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            @_error
+        </div>
+    }
+    else
+    {
+        <div class="text-center text-muted py-5">
+            <p>No report content available.</p>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? FilePath { get; set; }
+    [Parameter] public string? MarkdownContent { get; set; }
+
+    private string? _htmlContent;
+    private string? _error;
+
+    private static readonly MarkdownPipeline _pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
+    protected override void OnParametersSet()
+    {
+        _error = null;
+        _htmlContent = null;
+
+        if (!string.IsNullOrWhiteSpace(MarkdownContent))
+        {
+            _htmlContent = Markdown.ToHtml(MarkdownContent, _pipeline);
+        }
+        else if (!string.IsNullOrWhiteSpace(FilePath))
+        {
+            try
+            {
+                if (!File.Exists(FilePath))
+                {
+                    _error = $"Report file not found: {FilePath}";
+                    return;
+                }
+
+                var markdown = File.ReadAllText(FilePath);
+                _htmlContent = Markdown.ToHtml(markdown, _pipeline);
+            }
+            catch (Exception ex)
+            {
+                _error = $"Error reading report: {ex.Message}";
+            }
+        }
+    }
+}

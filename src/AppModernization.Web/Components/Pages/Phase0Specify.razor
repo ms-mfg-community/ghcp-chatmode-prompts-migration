@@ -1,0 +1,223 @@
+@page "/phase0/specify"
+@rendermode InteractiveServer
+@using AppModernization.Web.Models
+@using AppModernization.Web.Components.Wizard
+@inject Services.MigrationStateService StateService
+@inject NavigationManager Navigation
+
+<PageTitle>Phase 0: Specify — App Modernization</PageTitle>
+
+@if (_phase is not null)
+{
+    <PhasePage Phase="_phase" AutoPrompt="@_autoPrompt" WorkingDirectory="@_workingDirectory">
+        <PhaseContent>
+            <div class="mb-4">
+                <h5>📋 Specification Phase</h5>
+                <p>
+                    This phase transforms your discovery findings into detailed, field-level specifications,
+                    user stories, and a comprehensive data dictionary. The Copilot assistant will generate
+                    structured artifacts ready for development planning.
+                </p>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h6 class="card-title">Generated Reports</h6>
+                    <ul class="mb-0">
+                        <li><strong>Field-Specifications.md</strong> — Detailed field-level specs for every entity</li>
+                        <li><strong>User-Stories.md</strong> — User stories derived from discovered business processes</li>
+                        <li><strong>Data-Dictionary.md</strong> — Comprehensive data dictionary with types, constraints, and relationships</li>
+                    </ul>
+                </div>
+            </div>
+
+            @if (_phase.Status == PhaseStatus.NotStarted)
+            {
+                <div class="text-center py-3">
+                    <p class="text-muted mb-3">
+                        Use the chat panel on the right to interact with the specification assistant.
+                        Click <strong>Get Started</strong> to begin.
+                    </p>
+                    <button class="btn btn-primary btn-lg" @onclick="StartPhase">
+                        🚀 Get Started
+                    </button>
+                </div>
+            }
+        </PhaseContent>
+        <PhaseActions>
+            <div class="d-flex justify-content-between">
+                <a href="/phase0/discover" class="btn btn-outline-secondary">← Previous</a>
+                <div>
+                    <button class="btn btn-outline-secondary me-2" @onclick="SkipPhase">Skip</button>
+                    <button class="btn btn-success" @onclick="CompletePhase"
+                            disabled="@(_phase.Status != PhaseStatus.InProgress)">
+                        Complete & Continue →
+                    </button>
+                </div>
+            </div>
+        </PhaseActions>
+    </PhasePage>
+}
+else
+{
+    <div class="text-center py-5">
+        <h4 class="text-muted">No active project</h4>
+        <p>Please start a new migration project first.</p>
+        <a href="/" class="btn btn-primary">Go to Home</a>
+    </div>
+}
+
+@code {
+    private PhaseInfo? _phase;
+    private string? _autoPrompt;
+    private string? _workingDirectory;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (StateService.CurrentProject is null)
+        {
+            if (!await StateService.EnsureProjectLoadedAsync())
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
+        }
+
+        _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase0-specify");
+        _workingDirectory = StateService.CurrentProject?.SourcePath;
+
+        // Check if all reports exist — auto-complete if phase is still InProgress
+        if (_phase?.Status == PhaseStatus.InProgress && AllReportsExist())
+        {
+            await StateService.CompletePhaseAsync(_phase.Id);
+        }
+
+        if (_phase?.Status == PhaseStatus.InProgress)
+        {
+            BuildAutoPrompt();
+        }
+    }
+
+    private async Task StartPhase()
+    {
+        if (_phase is null) return;
+        await StateService.StartPhaseAsync(_phase.Id);
+        BuildAutoPrompt();
+        StateHasChanged();
+    }
+
+    private void BuildAutoPrompt()
+    {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
+        var slug = StateService.GetProjectSlug();
+
+        // Check upstream dependency: discovery reports
+        var discoveryReports = new[]
+        {
+            $"{slug}-Legacy-Discovery-Report.md",
+            $"{slug}-Business-Requirements.md",
+            $"{slug}-Process-Maps.md"
+        };
+        var missingDiscovery = new List<string>();
+        if (reportsPath is not null)
+        {
+            foreach (var report in discoveryReports)
+            {
+                var path = System.IO.Path.Combine(reportsPath, report);
+                if (!System.IO.File.Exists(path))
+                    missingDiscovery.Add(report);
+            }
+        }
+        else
+        {
+            missingDiscovery.AddRange(discoveryReports);
+        }
+
+        if (missingDiscovery.Count > 0)
+        {
+            _autoPrompt = "⚠️ The Specify phase depends on Discovery reports that have not been generated yet.\n\n" +
+                "Missing upstream reports:\n" +
+                string.Join("\n", missingDiscovery.Select(r => $"- ❌ {r}")) + "\n\n" +
+                "Please tell the user to go back and complete the **Discover** phase first to generate these reports before running Specify.";
+            return;
+        }
+
+        // Check own outputs: specify reports
+        var specifyReports = new[]
+        {
+            $"{slug}-Field-Specifications.md",
+            $"{slug}-User-Stories.md",
+            $"{slug}-Data-Dictionary.md"
+        };
+        var existingReports = new List<string>();
+        var missingReports = new List<string>();
+        foreach (var report in specifyReports)
+        {
+            var path = System.IO.Path.Combine(reportsPath!, report);
+            if (System.IO.File.Exists(path))
+                existingReports.Add(report);
+            else
+                missingReports.Add(report);
+        }
+
+        if (existingReports.Count == specifyReports.Length)
+        {
+            // All reports exist — don't re-run full specification
+            _autoPrompt = $"The specification phase has already been completed.\n\n" +
+                $"The following reports exist in {reportsDir}/:\n" +
+                string.Join("\n", existingReports.Select(r => $"- {r}")) + "\n\n" +
+                "Review these reports and provide a brief summary of key findings. " +
+                "If the user asks, you can refine or regenerate specific reports.";
+        }
+        else if (existingReports.Count > 0)
+        {
+            // Partial — only generate missing reports
+            _autoPrompt = $"Based on the discovery reports in {reportsDir}/, generate the missing specifications:\n\n" +
+                "Current status:\n" +
+                string.Join("\n", existingReports.Select(r => $"- ✅ {r}")) + "\n" +
+                string.Join("\n", missingReports.Select(r => $"- ❌ {r} (MISSING — generate this)")) + "\n\n" +
+                $"Only generate the missing reports in {reportsDir}/. Do NOT regenerate existing ones.\n" +
+                "Use the standardized field specification template format.";
+        }
+        else
+        {
+            // No reports — full specification
+            _autoPrompt = "Based on the discovery reports, generate detailed specifications:\n" +
+                $"1. Read {reportsDir}/{slug}-Legacy-Discovery-Report.md and {reportsDir}/{slug}-Business-Requirements.md\n" +
+                $"2. Generate field-level specifications in {reportsDir}/{slug}-Field-Specifications.md\n" +
+                $"3. Generate user stories with acceptance criteria in {reportsDir}/{slug}-User-Stories.md\n" +
+                $"4. Generate a data dictionary in {reportsDir}/{slug}-Data-Dictionary.md\n" +
+                "Use the standardized field specification template format.";
+        }
+    }
+
+    private async Task SkipPhase()
+    {
+        if (_phase is null) return;
+        await StateService.SkipPhaseAsync(_phase.Id);
+        Navigation.NavigateTo("/phase0/validate");
+    }
+
+    private async Task CompletePhase()
+    {
+        if (_phase is null) return;
+        await StateService.CompletePhaseAsync(_phase.Id);
+        Navigation.NavigateTo("/phase0/validate");
+    }
+
+    private bool AllReportsExist()
+    {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        if (reportsPath is null) return false;
+
+        var slug = StateService.GetProjectSlug();
+        var expected = new[]
+        {
+            $"{slug}-Field-Specifications.md",
+            $"{slug}-User-Stories.md",
+            $"{slug}-Data-Dictionary.md"
+        };
+        return expected.All(f => System.IO.File.Exists(System.IO.Path.Combine(reportsPath, f)));
+    }
+}

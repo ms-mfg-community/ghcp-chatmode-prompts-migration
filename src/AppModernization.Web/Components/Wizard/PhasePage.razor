@@ -1,0 +1,190 @@
+@using AppModernization.Web.Models
+@rendermode InteractiveServer
+@inject Services.MigrationStateService StateService
+@inject Services.AgentPromptService AgentPromptService
+@inject NavigationManager Navigation
+
+@* Project context bar with phase navigation *@
+@if (StateService.CurrentProject is not null)
+{
+    <div class="phase-nav-bar d-flex align-items-center px-3 py-2 border-bottom bg-light" style="min-height: 48px; gap: 12px;">
+        <a href="/dashboard" class="text-decoration-none text-dark fw-semibold small text-nowrap" title="Back to Dashboard">
+            📂 @StateService.CurrentProject.Name
+        </a>
+        <div class="vr"></div>
+        <div class="d-flex align-items-center flex-wrap" style="gap: 4px;">
+            @foreach (var p in StateService.GetPhases())
+            {
+                var isCurrent = p.Id == Phase.Id;
+                <button class="btn btn-sm px-2 py-0 @GetNavPillClass(p, isCurrent)"
+                        style="font-size: 0.7rem; min-width: 28px; line-height: 1.6;"
+                        title="@p.Name — @p.Status"
+                        @onclick="() => NavigateToPhase(p)"
+                        disabled="@isCurrent">
+                    @GetNavPillContent(p)
+                </button>
+            }
+        </div>
+        <div class="ms-auto d-flex align-items-center" style="gap: 8px;">
+            <a href="/reports" class="btn btn-sm btn-outline-secondary py-0" style="font-size: 0.7rem; line-height: 1.6;">
+                📊 Reports
+            </a>
+            @if (_skillInfos.Count > 0)
+            {
+                <button class="btn btn-sm py-0 @(_showSkillsDebug ? "btn-info" : "btn-outline-info")"
+                        style="font-size: 0.65rem; line-height: 1.6;"
+                        @onclick="() => _showSkillsDebug = !_showSkillsDebug"
+                        title="Toggle skills debug panel">
+                    🧩 @_skillInfos.Count skills
+                </button>
+            }
+            else
+            {
+                <small class="text-muted text-nowrap" style="font-size: 0.65rem;">🧩 0 skills</small>
+            }
+            @if (StateService.LastSavedAt is not null)
+            {
+                <small class="text-success text-nowrap" style="font-size: 0.65rem;">💾 @StateService.LastSavedAt.Value.ToLocalTime().ToString("h:mm tt")</small>
+            }
+        </div>
+    </div>
+}
+
+@* Skills debug panel — collapsible *@
+@if (_showSkillsDebug)
+{
+    <div class="border-bottom bg-dark text-white px-3 py-2" style="font-size: 0.75rem;">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <strong>🧩 Skills loaded for @Phase.AgentFile</strong>
+            <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size: 0.65rem;" @onclick="() => _showSkillsDebug = false">✕</button>
+        </div>
+        @if (_skillInfos.Count == 0)
+        {
+            <span class="text-warning">No skills referenced in agent frontmatter.</span>
+        }
+        else
+        {
+            <div class="d-flex flex-wrap" style="gap: 6px;">
+                @foreach (var skill in _skillInfos)
+                {
+                    <span class="badge @(skill.Loaded ? "bg-success" : "bg-danger") d-inline-flex align-items-center" style="gap: 4px; font-size: 0.7rem;">
+                        @(skill.Loaded ? "✓" : "✗") @skill.Name
+                    </span>
+                }
+            </div>
+            <div class="mt-2" style="opacity: 0.8;">
+                @foreach (var skill in _skillInfos)
+                {
+                    <div class="mb-1">
+                        <code class="text-info">@skill.Name</code>
+                        <span class="ms-1">— @skill.Description</span>
+                        @if (!skill.Loaded)
+                        {
+                            <span class="text-danger ms-1">(SKILL.md not found!)</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<div class="split-layout d-flex" style="height: calc(100vh - 48px);">
+    @* Left panel: phase content and actions *@
+    <div class="split-layout-left d-flex flex-column border-end" style="width: 60%; min-width: 400px;">
+        <div class="p-4 flex-grow-1 overflow-auto">
+            <div class="mb-3">
+                <span class="badge bg-primary-subtle text-primary me-2">Phase @Phase.PhaseNumber@(Phase.SubPhase is not null ? $" — {Phase.SubPhase}" : "")</span>
+                @if (Phase.Status != PhaseStatus.NotStarted)
+                {
+                    <span class="badge @GetStatusBadgeClass()">@Phase.Status</span>
+                }
+            </div>
+
+            <h3 class="mb-2">@Phase.Name</h3>
+            <p class="text-muted mb-4">@Phase.Description</p>
+
+            @if (PhaseContent is not null)
+            {
+                @PhaseContent
+            }
+        </div>
+
+        @if (PhaseActions is not null)
+        {
+            <div class="p-3 border-top bg-light">
+                @PhaseActions
+            </div>
+        }
+    </div>
+
+    @* Right panel: chat *@
+    <div class="split-layout-right d-flex flex-column" style="width: 40%; min-width: 350px;">
+        <AppModernization.Web.Components.Chat.ChatPanel Phase="Phase" AutoPrompt="@AutoPrompt" WorkingDirectory="@WorkingDirectory" />
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public PhaseInfo Phase { get; set; } = default!;
+
+    [Parameter]
+    public RenderFragment? PhaseContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? PhaseActions { get; set; }
+
+    [Parameter]
+    public string? AutoPrompt { get; set; }
+
+    [Parameter]
+    public string? WorkingDirectory { get; set; }
+
+    private List<SkillInfo> _skillInfos = new();
+    private bool _showSkillsDebug;
+
+    protected override void OnParametersSet()
+    {
+        if (Phase?.AgentFile is not null)
+        {
+            _skillInfos = AgentPromptService.GetAgentSkillInfo(Phase.AgentFile);
+        }
+    }
+
+    private void NavigateToPhase(PhaseInfo phase)
+    {
+        Navigation.NavigateTo(phase.Route);
+    }
+
+    private static string GetNavPillClass(PhaseInfo phase, bool isCurrent)
+    {
+        if (isCurrent)
+            return "btn-primary";
+        if (phase.Status == PhaseStatus.Completed)
+            return "btn-success";
+        if (phase.Status == PhaseStatus.InProgress)
+            return "btn-outline-primary";
+        if (phase.Status == PhaseStatus.Skipped)
+            return "btn-outline-secondary";
+        return "btn-outline-secondary";
+    }
+
+    private static string GetNavPillContent(PhaseInfo phase)
+    {
+        if (phase.Status == PhaseStatus.Completed)
+            return "✓";
+        if (phase.Status == PhaseStatus.Skipped)
+            return "—";
+        if (phase.SubPhase is not null)
+            return $"0{phase.SubPhase[0].ToString().ToUpper()}";
+        return phase.PhaseNumber.ToString();
+    }
+
+    private string GetStatusBadgeClass() => Phase.Status switch
+    {
+        PhaseStatus.InProgress => "bg-info text-dark",
+        PhaseStatus.Completed => "bg-success",
+        PhaseStatus.Skipped => "bg-secondary",
+        _ => "bg-light text-muted"
+    };
+}

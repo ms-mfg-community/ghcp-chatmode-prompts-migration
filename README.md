@@ -20,10 +20,129 @@ Through agent-guided workflows, developers can efficiently transform legacy appl
 
 ## Requirements
 
+### For Agents (VS Code / CLI)
 - GitHub Copilot (Pro, Pro+, Business, or Enterprise)
 - Visual Studio Code with GitHub Copilot Chat
 - Azure CLI (`az`) and Azure Developer CLI (`azd`)
 - Development tools appropriate for your application (.NET SDK, JDK, etc.)
+
+### For Web UI (`src/AppModernization.Web`)
+- .NET 10 SDK
+- [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) installed and authenticated
+- One of the authentication methods below
+
+## Authentication (Web UI)
+
+The web wizard supports three authentication methods. Choose whichever fits your scenario:
+
+### Option 1: GitHub OAuth App (recommended for teams)
+
+1. Go to **one of**:
+   - **Personal account**: [github.com/settings/developers](https://github.com/settings/developers) → **New OAuth App**
+   - **Organization**: `github.com/organizations/{your-org}/settings/applications` → **Register an application**
+   
+   > **Tip**: Org-owned apps are recommended for teams — ownership isn't tied to one person's account.
+2. Fill in:
+   | Field | Value |
+   |-------|-------|
+   | Application name | `App Modernization Wizard` |
+   | Homepage URL | `https://localhost:7292` |
+   | Authorization callback URL | `https://localhost:7292/signin-github` |
+3. Copy the **Client ID** and generate a **Client Secret**
+4. Configure credentials:
+   ```bash
+   cd src/AppModernization.Web
+   dotnet user-secrets init
+   dotnet user-secrets set "GitHub:ClientId" "your-client-id"
+   dotnet user-secrets set "GitHub:ClientSecret" "your-client-secret"
+   ```
+5. Restart the app — the "Sign in with GitHub" button will appear
+
+**Scopes requested at login**: `read:user`, `user:email`
+
+> **Note**: OAuth Apps don't have granular permissions at registration — scopes are requested at login time. The user must also have a GitHub Copilot subscription. For full repo features (PRs, issues, code push), the user's Copilot subscription and the Copilot CLI handle those operations locally — no additional OAuth scopes needed.
+
+### Option 2: GitHub App (recommended for enterprise)
+
+1. Go to [github.com/settings/apps](https://github.com/settings/apps) → **New GitHub App**
+2. Configure:
+   | Setting | Value |
+   |---------|-------|
+   | App name | `App Modernization Wizard` |
+   | Homepage URL | `https://localhost:7292` |
+   | Callback URL | `https://localhost:7292/signin-github` |
+   | ✅ Request user authorization (OAuth) | Enabled |
+3. **Required permissions**:
+
+   #### Minimum (login + Copilot chat only)
+
+   | Type | Permission | Access |
+   |------|-----------|--------|
+   | Account | Email addresses | Read-only |
+   | Account | Profile | Read-only (implicit) |
+   | Account | Copilot Chat | Read-only |
+   | Account | Copilot Requests | Read and write |
+
+   #### Recommended (full features — PRs, issues, branches)
+
+   | Type | Permission | Access | Why |
+   |------|-----------|--------|-----|
+   | Repository | Contents | Read and write | Read source code, push migrated code |
+   | Repository | Pull requests | Read and write | Create PRs for migration changes |
+   | Repository | Issues | Read and write | Create tracking issues |
+   | Repository | Metadata | Read-only | Required with any repo access |
+   | Repository | Workflows | Read and write | Create CI/CD pipeline files |
+   | Account | Email addresses | Read-only | User profile |
+   | Account | Copilot Chat | Read-only | Copilot SDK chat completions |
+   | Account | Copilot Requests | Read and write | Copilot SDK API requests |
+
+4. Copy Client ID and Client Secret, configure the same way as Option 1
+
+### Option 3: Personal Access Token (quickest for individual use)
+
+No server configuration needed — just paste a token in the UI.
+
+1. Go to [github.com/settings/tokens](https://github.com/settings/tokens?type=beta)
+2. Create a **fine-grained token** with these settings:
+   - **Resource owner**: Your personal account (not an organization)
+   - **Token name**: `App Modernization Wizard` (or similar)
+
+#### Minimum permissions (login + Copilot chat only)
+
+No repository access needed — agents work on local files.
+
+| Type | Permission | Access |
+|------|-----------|--------|
+| Repository | (none) | No repositories |
+| Account | Copilot Chat | Read-only |
+| Account | Copilot Requests | Read and write |
+| Account | Profile | Read-only |
+
+#### Recommended permissions (full features — PRs, issues, branches)
+
+Select your migration target repositories for full agent capabilities.
+
+| Type | Permission | Access | Why |
+|------|-----------|--------|-----|
+| Repository | Contents | Read and write | Read source code, push migrated code |
+| Repository | Pull requests | Read and write | Create PRs for migration changes |
+| Repository | Issues | Read and write | Create tracking issues for migration tasks |
+| Repository | Metadata | Read-only | Required when any repo access is granted |
+| Repository | Workflows | Read and write | Create CI/CD pipeline files |
+| Account | Copilot Chat | Read-only | Copilot SDK chat completions |
+| Account | Copilot Requests | Read and write | Copilot SDK API requests |
+| Account | Profile | Read-only | Display name and avatar in the UI |
+
+#### Classic token scopes
+
+| Tier | Scopes |
+|------|--------|
+| Minimum | `read:user`, `copilot` |
+| Recommended | `repo`, `workflow`, `read:user`, `copilot` |
+
+4. Paste the token into the PAT field in the app's top bar and click **Go**
+
+> **Note**: The PAT belongs to your personal GitHub account. Classic PATs (`ghp_` prefix) are **not supported** by the Copilot SDK — use fine-grained (`github_pat_` prefix) instead.
 
 ## Repository Structure
 
@@ -89,6 +208,31 @@ Use Phase 0 when the legacy system is undocumented, original developers are unav
 | `@playwright-testing` | Implement Playwright end-to-end tests for the migrated application |
 
 ## Getting Started
+
+### Quick Start (Web UI)
+
+The fastest way to get started is the setup script:
+
+```bash
+# Clone and run setup
+git clone https://github.com/ms-mfg-community/ghcp-chatmode-prompts-migration.git
+cd ghcp-chatmode-prompts-migration
+./setup.ps1
+```
+
+The setup script will:
+1. ✅ Check prerequisites (.NET 10 SDK, GitHub CLI, Copilot CLI)
+2. ✅ Walk you through GitHub OAuth App registration (opens browser, prompts for credentials)
+3. ✅ Store secrets securely in `dotnet user-secrets` (not in source code)
+4. ✅ Authenticate the Copilot CLI if needed
+5. ✅ Build and start the app at `https://localhost:7292`
+
+**Flags:**
+- `./setup.ps1 -SkipOAuth` — Skip OAuth setup, use PAT login only
+- `./setup.ps1 -StartOnly` — Just start the app (already configured)
+- `./setup.ps1 -Help` — Show detailed help
+
+### Using Agents in VS Code (no web UI)
 
 1. Clone this repository
 2. Install [GitHub Copilot](https://copilot.github.com/) in VS Code

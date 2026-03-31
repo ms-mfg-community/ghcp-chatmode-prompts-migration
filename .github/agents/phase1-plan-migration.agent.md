@@ -4,6 +4,7 @@ description: >-
   Phase 1: Plans the migration by gathering user requirements for hosting platform,
   IaC type, database, and target framework. Creates initial reports and migration strategy.
 tools: ['read', 'edit', 'search', 'execute', 'web']
+skills: ['dotnet-migration-patterns', 'azure-hosting-selection']
 ---
 
 # Phase 1 — Plan Migration

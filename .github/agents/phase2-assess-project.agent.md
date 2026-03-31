@@ -4,6 +4,7 @@ description: >-
   Phase 2: Performs comprehensive application assessment including framework detection,
   dependency analysis, architecture review, risk assessment, and generates a detailed report.
 tools: ['read', 'edit', 'search', 'execute', 'web']
+skills: ['dotnet-legacy-analysis', 'dotnet-migration-patterns', 'java-legacy-analysis', 'mermaid-diagrams']
 ---
 
 # Phase 2 — Assess Project
