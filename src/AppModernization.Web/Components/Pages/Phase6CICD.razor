@@ -124,8 +124,11 @@ else
 
     private void BuildAutoPrompt()
     {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        var reportsDir = reportsPath ?? "reports";
+        var slug = StateService.GetProjectSlug();
         _autoPrompt = "Set up CI/CD pipelines for the migrated application.\n" +
-            "Read the deployment and infrastructure reports for context.\n" +
+            $"Read the deployment and infrastructure reports in {reportsDir}/ for context (filenames are prefixed with {slug}-).\n" +
             "Generate GitHub Actions workflow files in .github/workflows/.\n" +
             "Include CI, CD, infrastructure deployment, and security scanning stages.";
     }

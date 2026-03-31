@@ -106,11 +106,12 @@ else
     {
         var reportsPath = StateService.GetCurrentProjectReportsPath();
         var reportsDir = reportsPath ?? "reports";
+        var slug = StateService.GetProjectSlug();
         _autoPrompt = "Validate all Phase 0 artifacts for completeness and accuracy:\n" +
             $"1. Read all reports in the {reportsDir}/ directory\n" +
             "2. Check requirements completeness, field spec accuracy, user story quality\n" +
             "3. Identify missing edge cases, validation gaps, and logic inconsistencies\n" +
-            $"4. Generate {reportsDir}/Requirements-Validation-Report.md with findings\n" +
+            $"4. Generate {reportsDir}/{slug}-Requirements-Validation-Report.md with findings\n" +
             "5. Include a 'Questions for SMEs' section for items that need human review";
     }
 

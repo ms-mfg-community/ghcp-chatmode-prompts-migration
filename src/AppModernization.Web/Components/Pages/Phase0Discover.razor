@@ -147,6 +147,7 @@ else
     {
         var reportsPath = StateService.GetCurrentProjectReportsPath();
         var reportsDir = reportsPath ?? "reports";
+        var slug = StateService.GetProjectSlug();
         var sourcePath = StateService.CurrentProject?.SourcePath;
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
@@ -156,9 +157,9 @@ else
                 "2. Determine the application type (.NET Framework version, UI technology)\n" +
                 "3. Map the architecture and component relationships\n" +
                 "4. Extract business rules from code and stored procedures\n" +
-                $"5. Document all findings in {reportsDir}/Legacy-Discovery-Report.md\n" +
-                $"6. Document extracted business requirements in {reportsDir}/Business-Requirements.md\n" +
-                $"7. Document process flows in {reportsDir}/Process-Maps.md\n\n" +
+                $"5. Document all findings in {reportsDir}/{slug}-Legacy-Discovery-Report.md\n" +
+                $"6. Document extracted business requirements in {reportsDir}/{slug}-Business-Requirements.md\n" +
+                $"7. Document process flows in {reportsDir}/{slug}-Process-Maps.md\n\n" +
                 $"Generate all reports as markdown files in the {reportsDir}/ directory.";
         }
         else
@@ -184,7 +185,13 @@ else
     private void LoadReportSummaries()
     {
         _reportSummaries.Clear();
-        var discoveryReports = new[] { "Legacy-Discovery-Report.md", "Business-Requirements.md", "Process-Maps.md" };
+        var slug = StateService.GetProjectSlug();
+        var discoveryReports = new[]
+        {
+            ($"{slug}-Legacy-Discovery-Report.md", "Legacy-Discovery-Report.md"),
+            ($"{slug}-Business-Requirements.md", "Business-Requirements.md"),
+            ($"{slug}-Process-Maps.md", "Process-Maps.md")
+        };
 
         // Build list of directories to search (in priority order)
         var searchDirs = new List<string>();
@@ -209,18 +216,16 @@ else
         if (System.IO.Directory.Exists(repoReportsPath))
             searchDirs.Add(repoReportsPath);
 
-        foreach (var reportName in discoveryReports)
+        foreach (var (prefixedName, fallbackName) in discoveryReports)
         {
-            // Find the first directory that has this report
+            // Try prefixed name first, then fallback to original name
             string? filePath = null;
             foreach (var dir in searchDirs)
             {
-                var candidate = System.IO.Path.Combine(dir, reportName);
-                if (System.IO.File.Exists(candidate))
-                {
-                    filePath = candidate;
-                    break;
-                }
+                var candidate = System.IO.Path.Combine(dir, prefixedName);
+                if (System.IO.File.Exists(candidate)) { filePath = candidate; break; }
+                candidate = System.IO.Path.Combine(dir, fallbackName);
+                if (System.IO.File.Exists(candidate)) { filePath = candidate; break; }
             }
 
             if (filePath is not null)
@@ -236,7 +241,7 @@ else
 
                 _reportSummaries.Add(new ReportSummary
                 {
-                    Name = reportName,
+                    Name = System.IO.Path.GetFileName(filePath),
                     FilePath = filePath,
                     Size = fi.Length,
                     LastModified = fi.LastWriteTimeUtc,

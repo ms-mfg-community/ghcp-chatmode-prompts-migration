@@ -59,6 +59,13 @@ public class MigrationStateService
         return _persistenceService.GetProjectReportsPath(CurrentProject.Id);
     }
 
+    public string GetProjectSlug()
+    {
+        if (CurrentProject is null) return "project";
+        return System.Text.RegularExpressions.Regex.Replace(
+            CurrentProject.Name.Trim(), @"[^a-zA-Z0-9]+", "-").Trim('-');
+    }
+
     public DateTime? LastSavedAt { get; private set; }
 
     public async Task<MigrationProject> InitializeProjectAsync(string name)

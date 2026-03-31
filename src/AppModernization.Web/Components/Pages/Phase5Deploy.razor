@@ -130,8 +130,9 @@ else
     {
         var reportsPath = StateService.GetCurrentProjectReportsPath();
         var reportsDir = reportsPath ?? "reports";
+        var slug = StateService.GetProjectSlug();
         _autoPrompt = "Prepare deployment for the migrated application.\n" +
-            $"Read all reports in {reportsDir}/ for context on the infrastructure and application.\n" +
+            $"Read all reports in {reportsDir}/ for context on the infrastructure and application (filenames are prefixed with {slug}-).\n" +
             "Create an azure.yaml file for Azure Developer CLI (azd) support.\n" +
             "Guide me through the deployment steps.";
     }

@@ -114,8 +114,9 @@ else
     {
         var reportsPath = StateService.GetCurrentProjectReportsPath();
         var reportsDir = reportsPath ?? "reports";
+        var slug = StateService.GetProjectSlug();
         _autoPrompt = "Generate Infrastructure as Code for the migrated application.\n" +
-            $"Read the assessment and planning reports in {reportsDir}/ for context.\n" +
+            $"Read the assessment and planning reports in {reportsDir}/ for context (filenames are prefixed with {slug}-).\n" +
             "Create Bicep/Terraform files in the infra/ directory.\n" +
             "Include compute, monitoring, database, identity, and networking modules.";
     }

@@ -104,11 +104,12 @@ else
     {
         var reportsPath = StateService.GetCurrentProjectReportsPath();
         var reportsDir = reportsPath ?? "reports";
+        var slug = StateService.GetProjectSlug();
         _autoPrompt = "Based on the discovery reports, generate detailed specifications:\n" +
-            $"1. Read {reportsDir}/Legacy-Discovery-Report.md and {reportsDir}/Business-Requirements.md\n" +
-            $"2. Generate field-level specifications in {reportsDir}/Field-Specifications.md\n" +
-            $"3. Generate user stories with acceptance criteria in {reportsDir}/User-Stories.md\n" +
-            $"4. Generate a data dictionary in {reportsDir}/Data-Dictionary.md\n" +
+            $"1. Read {reportsDir}/{slug}-Legacy-Discovery-Report.md and {reportsDir}/{slug}-Business-Requirements.md\n" +
+            $"2. Generate field-level specifications in {reportsDir}/{slug}-Field-Specifications.md\n" +
+            $"3. Generate user stories with acceptance criteria in {reportsDir}/{slug}-User-Stories.md\n" +
+            $"4. Generate a data dictionary in {reportsDir}/{slug}-Data-Dictionary.md\n" +
             "Use the standardized field specification template format.";
     }
 
