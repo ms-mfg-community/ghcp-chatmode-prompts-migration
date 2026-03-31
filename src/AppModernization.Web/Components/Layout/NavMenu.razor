@@ -1,7 +1,4 @@
-﻿@rendermode InteractiveServer
-@inject Services.MigrationStateService StateService
-
-<div class="top-row ps-3 navbar navbar-dark">
+﻿<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">🚀 App Modernization</a>
     </div>
@@ -29,42 +26,63 @@
             </NavLink>
         </div>
 
-        @if (StateService.CurrentProject is not null)
-        {
-            <div class="px-3 mt-2 mb-1">
-                <small class="text-white-50" style="font-size: 0.7rem;">📂 @StateService.CurrentProject.Name</small>
-            </div>
-        }
+        <h6 class="px-3 mt-3 mb-1 text-muted">Phase 0 — Discovery</h6>
 
-        <h6 class="px-3 mt-2 mb-1 text-muted">Phase 0 — Discovery</h6>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="phase0/discover">
+                🔍 Discover
+            </NavLink>
+        </div>
 
-        @foreach (var phase in _discoveryPhases)
-        {
-            <div class="nav-item px-3">
-                <NavLink class="nav-link d-flex justify-content-between align-items-center" href="@phase.Route.TrimStart('/')">
-                    <span>@GetPhaseIcon(phase) @phase.Name</span>
-                    @if (phase.Status != PhaseStatus.NotStarted)
-                    {
-                        <span class="badge @GetNavBadgeClass(phase)" style="font-size: 0.6rem;">@GetNavBadgeText(phase)</span>
-                    }
-                </NavLink>
-            </div>
-        }
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="phase0/specify">
+                📋 Specify
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="phase0/validate">
+                ✅ Validate
+            </NavLink>
+        </div>
 
         <h6 class="px-3 mt-3 mb-1 text-muted">Migration Phases</h6>
 
-        @foreach (var phase in _migrationPhases)
-        {
-            <div class="nav-item px-3">
-                <NavLink class="nav-link d-flex justify-content-between align-items-center" href="@phase.Route.TrimStart('/')">
-                    <span>@GetPhaseIcon(phase) @phase.PhaseNumber. @phase.Name</span>
-                    @if (phase.Status != PhaseStatus.NotStarted)
-                    {
-                        <span class="badge @GetNavBadgeClass(phase)" style="font-size: 0.6rem;">@GetNavBadgeText(phase)</span>
-                    }
-                </NavLink>
-            </div>
-        }
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="phase1/plan">
+                📝 1. Plan
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="phase2/assess">
+                🔬 2. Assess
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="phase3/migrate">
+                ⚡ 3. Migrate
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="phase4/infra">
+                🏗️ 4. Infra
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="phase5/deploy">
+                🚀 5. Deploy
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="phase6/cicd">
+                🔄 6. CI/CD
+            </NavLink>
+        </div>
 
         <h6 class="px-3 mt-3 mb-1 text-muted">Tools</h6>
 
@@ -75,45 +93,3 @@
         </div>
     </nav>
 </div>
-
-@code {
-    private List<PhaseInfo> _discoveryPhases = new();
-    private List<PhaseInfo> _migrationPhases = new();
-
-    protected override void OnInitialized()
-    {
-        var phases = StateService.GetPhases();
-        _discoveryPhases = phases.Where(p => p.PhaseNumber == 0).ToList();
-        _migrationPhases = phases.Where(p => p.PhaseNumber > 0).ToList();
-    }
-
-    private static string GetPhaseIcon(PhaseInfo phase) => phase.Id switch
-    {
-        "phase0-discover" => "🔍",
-        "phase0-specify" => "📋",
-        "phase0-validate" => "✅",
-        "phase1-plan" => "📝",
-        "phase2-assess" => "🔬",
-        "phase3-migrate" => "⚡",
-        "phase4-infra" => "🏗️",
-        "phase5-deploy" => "🚀",
-        "phase6-cicd" => "🔄",
-        _ => "▪️"
-    };
-
-    private static string GetNavBadgeClass(PhaseInfo phase) => phase.Status switch
-    {
-        PhaseStatus.Completed => "bg-success",
-        PhaseStatus.InProgress => "bg-primary",
-        PhaseStatus.Skipped => "bg-secondary",
-        _ => "bg-light text-muted"
-    };
-
-    private static string GetNavBadgeText(PhaseInfo phase) => phase.Status switch
-    {
-        PhaseStatus.Completed => "✓",
-        PhaseStatus.InProgress => "Active",
-        PhaseStatus.Skipped => "Skip",
-        _ => ""
-    };
-}
