@@ -117,8 +117,12 @@
             ? _reports
             : _reports.Where(r => r.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase));
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        if (StateService.CurrentProject is null)
+        {
+            await StateService.EnsureProjectLoadedAsync();
+        }
         _viewMode = StateService.CurrentProject is not null ? "current" : "all";
         RefreshReports();
     }

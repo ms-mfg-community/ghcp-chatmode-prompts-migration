@@ -98,12 +98,15 @@ else
     private string? _autoPrompt;
     private string? _workingDirectory;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         if (StateService.CurrentProject is null)
         {
-            Navigation.NavigateTo("/");
-            return;
+            if (!await StateService.EnsureProjectLoadedAsync())
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
         }
 
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase5-deploy");

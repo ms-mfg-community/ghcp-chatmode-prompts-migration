@@ -137,6 +137,14 @@
 </div>
 
 @code {
+    protected override async Task OnInitializedAsync()
+    {
+        if (StateService.CurrentProject is null)
+        {
+            await StateService.EnsureProjectLoadedAsync();
+        }
+    }
+
     private async Task NavigateToPhase(PhaseInfo phase)
     {
         if (phase.Status == PhaseStatus.NotStarted)

@@ -21,6 +21,38 @@ public class MigrationStateService
 
     public MigrationProject? CurrentProject { get; private set; }
 
+    /// <summary>
+    /// Ensures a project is loaded. If CurrentProject is null, attempts to
+    /// restore the most recently used project from disk persistence.
+    /// Returns true if a project is available after the call.
+    /// </summary>
+    public async Task<bool> EnsureProjectLoadedAsync()
+    {
+        if (CurrentProject is not null) return true;
+
+        try
+        {
+            var projects = await _persistenceService.ListProjectsAsync();
+            if (projects.Count == 0) return false;
+
+            // Load the most recent project
+            var latest = projects.First(); // Already sorted by CreatedAt DESC
+            var project = await _persistenceService.LoadProjectAsync(latest.Id);
+            if (project is not null)
+            {
+                CurrentProject = project;
+                _logger.LogInformation("Auto-restored project {ProjectId} ({Name})", project.Id, project.Name);
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to auto-restore project from persistence");
+        }
+
+        return false;
+    }
+
     public string? GetCurrentProjectReportsPath()
     {
         if (CurrentProject is null) return null;
