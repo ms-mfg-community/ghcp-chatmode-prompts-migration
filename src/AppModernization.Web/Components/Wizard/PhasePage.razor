@@ -1,7 +1,42 @@
 @using AppModernization.Web.Models
 @rendermode InteractiveServer
+@inject Services.MigrationStateService StateService
+@inject NavigationManager Navigation
 
-<div class="split-layout d-flex h-100">
+@* Project context bar with phase navigation *@
+@if (StateService.CurrentProject is not null)
+{
+    <div class="phase-nav-bar d-flex align-items-center px-3 py-2 border-bottom bg-light" style="min-height: 48px; gap: 12px;">
+        <a href="/dashboard" class="text-decoration-none text-dark fw-semibold small text-nowrap" title="Back to Dashboard">
+            📂 @StateService.CurrentProject.Name
+        </a>
+        <div class="vr"></div>
+        <div class="d-flex align-items-center flex-wrap" style="gap: 4px;">
+            @foreach (var p in StateService.GetPhases())
+            {
+                var isCurrent = p.Id == Phase.Id;
+                <button class="btn btn-sm px-2 py-0 @GetNavPillClass(p, isCurrent)"
+                        style="font-size: 0.7rem; min-width: 28px; line-height: 1.6;"
+                        title="@p.Name — @p.Status"
+                        @onclick="() => NavigateToPhase(p)"
+                        disabled="@isCurrent">
+                    @GetNavPillContent(p)
+                </button>
+            }
+        </div>
+        <div class="ms-auto d-flex align-items-center" style="gap: 8px;">
+            <a href="/reports" class="btn btn-sm btn-outline-secondary py-0" style="font-size: 0.7rem; line-height: 1.6;">
+                📊 Reports
+            </a>
+            @if (StateService.LastSavedAt is not null)
+            {
+                <small class="text-success text-nowrap" style="font-size: 0.65rem;">💾 @StateService.LastSavedAt.Value.ToLocalTime().ToString("h:mm tt")</small>
+            }
+        </div>
+    </div>
+}
+
+<div class="split-layout d-flex" style="height: calc(100vh - 48px);">
     @* Left panel: phase content and actions *@
     <div class="split-layout-left d-flex flex-column border-end" style="width: 60%; min-width: 400px;">
         <div class="p-4 flex-grow-1 overflow-auto">
@@ -51,6 +86,35 @@
 
     [Parameter]
     public string? WorkingDirectory { get; set; }
+
+    private void NavigateToPhase(PhaseInfo phase)
+    {
+        Navigation.NavigateTo(phase.Route);
+    }
+
+    private static string GetNavPillClass(PhaseInfo phase, bool isCurrent)
+    {
+        if (isCurrent)
+            return "btn-primary";
+        if (phase.Status == PhaseStatus.Completed)
+            return "btn-success";
+        if (phase.Status == PhaseStatus.InProgress)
+            return "btn-outline-primary";
+        if (phase.Status == PhaseStatus.Skipped)
+            return "btn-outline-secondary";
+        return "btn-outline-secondary";
+    }
+
+    private static string GetNavPillContent(PhaseInfo phase)
+    {
+        if (phase.Status == PhaseStatus.Completed)
+            return "✓";
+        if (phase.Status == PhaseStatus.Skipped)
+            return "—";
+        if (phase.SubPhase is not null)
+            return $"0{phase.SubPhase[0].ToString().ToUpper()}";
+        return phase.PhaseNumber.ToString();
+    }
 
     private string GetStatusBadgeClass() => Phase.Status switch
     {
