@@ -4,6 +4,7 @@ description: >-
   Phase 3: Migrates application code to modern framework versions compatible with Azure,
   including configuration transformation, service migration, and containerization.
 tools: ['read', 'edit', 'search', 'execute', 'web']
+skills: ['dotnet-migration-patterns']
 ---
 
 # Phase 3 — Migrate Code

@@ -4,6 +4,7 @@ description: >-
   Phase 4: Generates Infrastructure as Code (Bicep or Terraform) for Azure deployment,
   including monitoring, security, networking, and cost optimization configurations.
 tools: ['read', 'edit', 'search', 'execute', 'web']
+skills: ['azure-hosting-selection']
 ---
 
 # Phase 4 — Generate Infrastructure as Code

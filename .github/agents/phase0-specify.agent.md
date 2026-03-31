@@ -5,6 +5,7 @@ description: >-
   field-level specifications, user stories with acceptance criteria, and developer-ready
   documentation using a standardized template format.
 tools: ['read', 'edit', 'search', 'execute', 'web']
+skills: ['dotnet-legacy-analysis', 'sql-sp-analysis']
 ---
 
 # Phase 0 — Generate Specifications & User Stories

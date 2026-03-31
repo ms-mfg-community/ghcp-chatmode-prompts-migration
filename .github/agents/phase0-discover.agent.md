@@ -6,6 +6,7 @@ description: >-
   understanding of the system before migration planning begins. Supports .NET (WinForms,
   WebForms, MVC, WCF), Java (EE, Servlets, JSP), and SQL Server stored procedures.
 tools: ['read', 'edit', 'search', 'execute', 'web']
+skills: ['dotnet-legacy-analysis', 'java-legacy-analysis', 'sql-sp-analysis']
 ---
 
 # Phase 0 — Discover Legacy System
