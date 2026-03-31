@@ -1,6 +1,7 @@
 @using AppModernization.Web.Models
 @rendermode InteractiveServer
 @inject Services.MigrationStateService StateService
+@inject Services.AgentPromptService AgentPromptService
 @inject NavigationManager Navigation
 
 @* Project context bar with phase navigation *@
@@ -28,11 +29,63 @@
             <a href="/reports" class="btn btn-sm btn-outline-secondary py-0" style="font-size: 0.7rem; line-height: 1.6;">
                 📊 Reports
             </a>
+            @if (_skillInfos.Count > 0)
+            {
+                <button class="btn btn-sm py-0 @(_showSkillsDebug ? "btn-info" : "btn-outline-info")"
+                        style="font-size: 0.65rem; line-height: 1.6;"
+                        @onclick="() => _showSkillsDebug = !_showSkillsDebug"
+                        title="Toggle skills debug panel">
+                    🧩 @_skillInfos.Count skills
+                </button>
+            }
+            else
+            {
+                <small class="text-muted text-nowrap" style="font-size: 0.65rem;">🧩 0 skills</small>
+            }
             @if (StateService.LastSavedAt is not null)
             {
                 <small class="text-success text-nowrap" style="font-size: 0.65rem;">💾 @StateService.LastSavedAt.Value.ToLocalTime().ToString("h:mm tt")</small>
             }
         </div>
+    </div>
+}
+
+@* Skills debug panel — collapsible *@
+@if (_showSkillsDebug)
+{
+    <div class="border-bottom bg-dark text-white px-3 py-2" style="font-size: 0.75rem;">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <strong>🧩 Skills loaded for @Phase.AgentFile</strong>
+            <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size: 0.65rem;" @onclick="() => _showSkillsDebug = false">✕</button>
+        </div>
+        @if (_skillInfos.Count == 0)
+        {
+            <span class="text-warning">No skills referenced in agent frontmatter.</span>
+        }
+        else
+        {
+            <div class="d-flex flex-wrap" style="gap: 6px;">
+                @foreach (var skill in _skillInfos)
+                {
+                    <span class="badge @(skill.Loaded ? "bg-success" : "bg-danger") d-inline-flex align-items-center" style="gap: 4px; font-size: 0.7rem;">
+                        @(skill.Loaded ? "✓" : "✗") @skill.Name
+                    </span>
+                }
+            </div>
+            <div class="mt-2" style="opacity: 0.8;">
+                @foreach (var skill in _skillInfos)
+                {
+                    <div class="mb-1">
+                        <code class="text-info">@skill.Name</code>
+                        <span class="ms-1">— @skill.Description</span>
+                        @if (!skill.Loaded)
+                        {
+                            <span class="text-danger ms-1">(SKILL.md not found!)</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
     </div>
 }
 
@@ -86,6 +139,17 @@
 
     [Parameter]
     public string? WorkingDirectory { get; set; }
+
+    private List<SkillInfo> _skillInfos = new();
+    private bool _showSkillsDebug;
+
+    protected override void OnParametersSet()
+    {
+        if (Phase?.AgentFile is not null)
+        {
+            _skillInfos = AgentPromptService.GetAgentSkillInfo(Phase.AgentFile);
+        }
+    }
 
     private void NavigateToPhase(PhaseInfo phase)
     {

@@ -54,7 +54,7 @@ public class AgentPromptService
                 if (skillContent is not null)
                 {
                     skillSections.Add($"### Skill: {skillName}\n\n{skillContent}");
-                    _logger.LogDebug("Loaded skill '{SkillName}' for agent '{Agent}'", skillName, agentFileName);
+                    _logger.LogInformation("Loaded skill '{SkillName}' for agent '{Agent}'", skillName, agentFileName);
                 }
                 else
                 {
@@ -68,6 +68,10 @@ public class AgentPromptService
                     + string.Join("\n\n---\n\n", skillSections);
             }
         }
+        else
+        {
+            _logger.LogInformation("Agent '{Agent}' has no skills referenced", agentFileName);
+        }
 
         lock (_lock)
         {
@@ -75,6 +79,77 @@ public class AgentPromptService
         }
 
         return combinedPrompt;
+    }
+
+    /// <summary>
+    /// Returns the list of skill names referenced by an agent file (without loading content).
+    /// </summary>
+    public List<string> GetAgentSkills(string agentFileName)
+    {
+        var filePath = Path.Combine(_agentsDirectory, agentFileName);
+        if (!File.Exists(filePath))
+            return new List<string>();
+
+        var content = File.ReadAllText(filePath);
+        var frontmatter = ExtractFrontmatter(content);
+        return ParseSkillReferences(frontmatter);
+    }
+
+    /// <summary>
+    /// Returns skill metadata (name, description, loaded status) for an agent.
+    /// </summary>
+    public List<SkillInfo> GetAgentSkillInfo(string agentFileName)
+    {
+        var skillNames = GetAgentSkills(agentFileName);
+        var result = new List<SkillInfo>();
+
+        foreach (var name in skillNames)
+        {
+            var skillFile = Path.Combine(_skillsDirectory, name, "SKILL.md");
+            var exists = File.Exists(skillFile);
+            string? description = null;
+
+            if (exists)
+            {
+                var content = File.ReadAllText(skillFile);
+                var fm = ExtractFrontmatter(content);
+                // Extract description from frontmatter
+                foreach (var line in fm.Split('\n'))
+                {
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("description:"))
+                    {
+                        description = trimmed["description:".Length..].Trim().TrimStart('>').Trim();
+                        if (string.IsNullOrEmpty(description))
+                        {
+                            // Multi-line description — grab next lines
+                            var idx = Array.IndexOf(fm.Split('\n'), line);
+                            var lines = fm.Split('\n');
+                            var descLines = new List<string>();
+                            for (var i = idx + 1; i < lines.Length; i++)
+                            {
+                                var dl = lines[i].Trim();
+                                if (dl.Length > 0 && !dl.Contains(':'))
+                                    descLines.Add(dl);
+                                else
+                                    break;
+                            }
+                            description = string.Join(" ", descLines);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            result.Add(new SkillInfo
+            {
+                Name = name,
+                Description = description ?? "(no description)",
+                Loaded = exists
+            });
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -230,4 +305,11 @@ public class AgentPromptService
 
         return content[bodyStart..].Trim();
     }
+}
+
+public record SkillInfo
+{
+    public string Name { get; init; } = "";
+    public string Description { get; init; } = "";
+    public bool Loaded { get; init; }
 }
