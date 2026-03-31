@@ -36,15 +36,23 @@ public class CopilotService : IAsyncDisposable
 
     /// <summary>
     /// Initializes the CopilotClient. Safe to call multiple times.
+    /// If the client was previously initialized but is now dead, resets and reinitializes.
     /// </summary>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        if (_initialized) return;
+        if (_initialized && _client is not null) return;
 
         await _initLock.WaitAsync(cancellationToken);
         try
         {
-            if (_initialized) return;
+            if (_initialized && _client is not null) return;
+
+            // Reset state if partially initialized (e.g. client died or was disposed)
+            if (_initialized || _client is not null)
+            {
+                _logger.LogWarning("CopilotClient in stale state (_initialized={Initialized}, _client={ClientNull}). Resetting.", _initialized, _client is null ? "null" : "not null");
+                await CleanupClientAsync();
+            }
 
             _client = new CopilotClient(new CopilotClientOptions
             {
@@ -59,11 +67,40 @@ public class CopilotService : IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to start CopilotClient");
+            await CleanupClientAsync();
             throw;
         }
         finally
         {
             _initLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Resets the service so the next InitializeAsync call will create a fresh client.
+    /// </summary>
+    public async Task ResetAsync()
+    {
+        await _initLock.WaitAsync();
+        try
+        {
+            await CleanupClientAsync();
+            _logger.LogInformation("CopilotService reset for reinitialization");
+        }
+        finally
+        {
+            _initLock.Release();
+        }
+    }
+
+    private async Task CleanupClientAsync()
+    {
+        _initialized = false;
+        if (_client is not null)
+        {
+            try { await _client.StopAsync(); } catch { /* best-effort */ }
+            try { await _client.DisposeAsync(); } catch { /* best-effort */ }
+            _client = null;
         }
     }
 

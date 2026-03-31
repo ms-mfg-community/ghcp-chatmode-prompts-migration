@@ -19,16 +19,16 @@
         <div class="d-flex gap-2">
             <div class="btn-group btn-group-sm">
                 <button class="btn @(_viewMode == "current" ? "btn-primary" : "btn-outline-primary")"
-                        @onclick='() => SwitchView("current")'
+                        @onclick='async () => await SwitchView("current")'
                         disabled="@(StateService.CurrentProject is null)">
                     Current Project
                 </button>
                 <button class="btn @(_viewMode == "all" ? "btn-primary" : "btn-outline-primary")"
-                        @onclick='() => SwitchView("all")'>
+                        @onclick='async () => await SwitchView("all")'>
                     All Projects
                 </button>
             </div>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshReports">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshReportsAsync">
                 🔄 Refresh
             </button>
         </div>
@@ -124,16 +124,16 @@
             await StateService.EnsureProjectLoadedAsync();
         }
         _viewMode = StateService.CurrentProject is not null ? "current" : "all";
-        RefreshReports();
+        await RefreshReportsAsync();
     }
 
-    private void SwitchView(string mode)
+    private async Task SwitchView(string mode)
     {
         _viewMode = mode;
-        RefreshReports();
+        await RefreshReportsAsync();
     }
 
-    private void RefreshReports()
+    private async Task RefreshReportsAsync()
     {
         _reports.Clear();
         _selectedReport = null;
@@ -153,15 +153,15 @@
         else
         {
             // Show reports from all projects
-            LoadAllProjectReports();
+            await LoadAllProjectReportsAsync();
         }
 
         StateHasChanged();
     }
 
-    private void LoadAllProjectReports()
+    private async Task LoadAllProjectReportsAsync()
     {
-        var projects = PersistenceService.ListProjectsAsync().GetAwaiter().GetResult();
+        var projects = await PersistenceService.ListProjectsAsync();
         foreach (var project in projects)
         {
             var reportsPath = PersistenceService.GetProjectReportsPath(project.Id);

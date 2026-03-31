@@ -42,15 +42,26 @@
     <div class="chat-panel-input border-top p-3">
         @if (_sessionError is not null)
         {
-            <div class="alert alert-warning py-1 px-2 mb-2 small">
-                <i class="bi bi-exclamation-triangle me-1"></i> @_sessionError
-                <button class="btn btn-sm btn-link p-0 ms-2" @onclick="InitializeSessionAsync">Retry</button>
+            <div class="alert alert-danger py-2 px-3 mb-2 d-flex align-items-center">
+                <div class="flex-grow-1">
+                    <i class="bi bi-exclamation-circle me-1"></i>
+                    <strong>Connection failed:</strong> @_sessionError
+                </div>
+                <button class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0"
+                        @onclick="RetryInitializeAsync"
+                        disabled="@_isInitializing">
+                    @if (_isInitializing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    }
+                    <i class="bi bi-arrow-clockwise me-1"></i> Retry Connection
+                </button>
             </div>
         }
 
         <div class="input-group">
             <textarea class="form-control"
-                      placeholder="@(_currentSessionId is null ? "Initializing..." : "Type your message...")"
+                      placeholder="@GetPlaceholder()"
                       @bind="_userInput"
                       @bind:event="oninput"
                       @onkeydown="HandleKeyDown"
@@ -78,6 +89,7 @@
     private readonly List<ChatMessage> _messages = new();
     private string _userInput = "";
     private bool _isLoading;
+    private bool _isInitializing;
     private bool _shouldPreventDefault;
     private string? _currentSessionId;
     private string? _sessionError;
@@ -85,6 +97,8 @@
 
     // Tracks the streaming assistant message being built up
     private ChatMessage? _streamingMessage;
+
+    private static readonly TimeSpan InitTimeout = TimeSpan.FromSeconds(30);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -97,37 +111,88 @@
         }
     }
 
+    private string GetPlaceholder()
+    {
+        if (_sessionError is not null) return "Fix the connection error above to start chatting...";
+        if (_isInitializing) return "Connecting to Copilot assistant...";
+        if (_currentSessionId is null && Phase is null) return "No phase selected.";
+        if (_currentSessionId is null) return "Initializing...";
+        return "Type your message...";
+    }
+
+    private async Task RetryInitializeAsync()
+    {
+        // Reset the service to force a fresh connection
+        try { await CopilotService.ResetAsync(); } catch { /* best-effort */ }
+        await InitializeSessionAsync();
+    }
+
     private async Task InitializeSessionAsync()
     {
         _sessionError = null;
+        _isInitializing = true;
+        StateHasChanged();
 
-        try
+        if (Phase is null)
         {
-            if (SessionId is not null && CopilotService.HasSession(SessionId))
-            {
-                _currentSessionId = SessionId;
-            }
-            else if (Phase is not null)
-            {
-                await CopilotService.InitializeAsync();
-                _currentSessionId = await CopilotService.CreateSessionForPhaseAsync(
-                    Phase, WorkingDirectory);
-            }
+            _isInitializing = false;
+            _sessionError = "No phase information available. Please navigate to a phase page.";
             StateHasChanged();
+            return;
+        }
 
-            // Auto-send initial prompt if provided and chat is empty
-            if (!string.IsNullOrWhiteSpace(AutoPrompt) && _currentSessionId is not null && _messages.Count == 0)
+        // Attempt initialization with one automatic retry on failure
+        for (var attempt = 1; attempt <= 2; attempt++)
+        {
+            try
             {
-                _userInput = AutoPrompt;
-                await SendMessageAsync();
+                using var cts = new CancellationTokenSource(InitTimeout);
+
+                if (SessionId is not null && CopilotService.HasSession(SessionId))
+                {
+                    _currentSessionId = SessionId;
+                }
+                else
+                {
+                    await CopilotService.InitializeAsync(cts.Token);
+                    _currentSessionId = await CopilotService.CreateSessionForPhaseAsync(
+                        Phase, WorkingDirectory, cts.Token);
+                }
+
+                _sessionError = null;
+                _isInitializing = false;
+                StateHasChanged();
+
+                // Auto-send initial prompt if provided and chat is empty
+                if (!string.IsNullOrWhiteSpace(AutoPrompt) && _currentSessionId is not null && _messages.Count == 0)
+                {
+                    _userInput = AutoPrompt;
+                    await SendMessageAsync();
+                }
+
+                return; // Success — exit the retry loop
+            }
+            catch (OperationCanceledException)
+            {
+                Logger.LogWarning("Chat session initialization timed out (attempt {Attempt}/2)", attempt);
+                _sessionError = "Connection timed out.";
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to initialize chat session (attempt {Attempt}/2)", attempt);
+                _sessionError = "Could not connect to the Copilot assistant. Check that the Copilot CLI is available.";
+            }
+
+            // On first failure, reset the service and retry once
+            if (attempt < 2)
+            {
+                Logger.LogInformation("Retrying initialization after resetting CopilotService...");
+                try { await CopilotService.ResetAsync(); } catch { /* best-effort */ }
             }
         }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to initialize chat session");
-            _sessionError = "Could not connect to the Copilot assistant. Check that the Copilot CLI is available.";
-            StateHasChanged();
-        }
+
+        _isInitializing = false;
+        StateHasChanged();
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)

@@ -39,6 +39,28 @@
                 </div>
             }
 
+            @if (_reportSummaries.Any())
+            {
+                <div class="card mb-4 border-success">
+                    <div class="card-header bg-success-subtle d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">📊 Discovery Reports</h6>
+                        <a href="/reports" class="btn btn-sm btn-outline-success">View All Reports →</a>
+                    </div>
+                    <div class="card-body p-0">
+                        @foreach (var report in _reportSummaries)
+                        {
+                            <div class="p-3 @(report != _reportSummaries.Last() ? "border-bottom" : "")">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <strong class="text-primary">@report.Name</strong>
+                                    <small class="text-muted">@FormatSize(report.Size) · @report.LastModified.ToLocalTime().ToString("MMM d, h:mm tt")</small>
+                                </div>
+                                <p class="text-muted small mb-0">@report.Preview</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
             @if (_phase.Status == PhaseStatus.NotStarted)
             {
                 <div class="text-center py-3">
@@ -84,6 +106,7 @@ else
     private PhaseInfo? _phase;
     private string? _autoPrompt;
     private string? _workingDirectory;
+    private List<ReportSummary> _reportSummaries = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -103,6 +126,11 @@ else
         if (_phase?.Status == PhaseStatus.InProgress)
         {
             BuildAutoPrompt();
+        }
+
+        if (_phase?.Status == PhaseStatus.InProgress || _phase?.Status == PhaseStatus.Completed)
+        {
+            LoadReportSummaries();
         }
     }
 
@@ -150,5 +178,64 @@ else
         if (_phase is null) return;
         await StateService.CompletePhaseAsync(_phase.Id);
         Navigation.NavigateTo("/phase0/specify");
+    }
+
+    private void LoadReportSummaries()
+    {
+        _reportSummaries.Clear();
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        if (reportsPath is null || !System.IO.Directory.Exists(reportsPath)) return;
+
+        var repoReportsPath = System.IO.Path.GetFullPath(
+            System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "reports"));
+
+        var discoveryReports = new[] { "Legacy-Discovery-Report.md", "Business-Requirements.md", "Process-Maps.md" };
+
+        foreach (var reportName in discoveryReports)
+        {
+            var filePath = System.IO.Path.Combine(reportsPath, reportName);
+            if (!System.IO.File.Exists(filePath))
+            {
+                if (System.IO.Directory.Exists(repoReportsPath))
+                    filePath = System.IO.Path.Combine(repoReportsPath, reportName);
+            }
+
+            if (System.IO.File.Exists(filePath))
+            {
+                var fi = new System.IO.FileInfo(filePath);
+                var content = System.IO.File.ReadAllText(filePath);
+                var lines = content.Split('\n')
+                    .Select(l => l.Trim())
+                    .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith('#') && !l.StartsWith("---"))
+                    .Take(3);
+                var preview = string.Join(" ", lines);
+                if (preview.Length > 250) preview = preview[..250] + "…";
+
+                _reportSummaries.Add(new ReportSummary
+                {
+                    Name = reportName,
+                    FilePath = filePath,
+                    Size = fi.Length,
+                    LastModified = fi.LastWriteTimeUtc,
+                    Preview = preview
+                });
+            }
+        }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes >= 1048576) return $"{bytes / 1048576.0:F1} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
+    }
+
+    private record ReportSummary
+    {
+        public string Name { get; init; } = "";
+        public string FilePath { get; init; } = "";
+        public long Size { get; init; }
+        public DateTime LastModified { get; init; }
+        public string Preview { get; init; } = "";
     }
 }
