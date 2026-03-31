@@ -123,6 +123,12 @@ else
         _phase = StateService.GetPhases().FirstOrDefault(p => p.Id == "phase0-discover");
         _workingDirectory = StateService.CurrentProject?.SourcePath;
 
+        // Check if all reports exist — auto-complete if phase is still InProgress
+        if (_phase?.Status == PhaseStatus.InProgress && AllReportsExist())
+        {
+            await StateService.CompletePhaseAsync(_phase.Id);
+        }
+
         // If phase is already in progress (user navigated back), auto-prompt on load
         if (_phase?.Status == PhaseStatus.InProgress)
         {
@@ -149,18 +155,66 @@ else
         var reportsDir = reportsPath ?? "reports";
         var slug = StateService.GetProjectSlug();
         var sourcePath = StateService.CurrentProject?.SourcePath;
+
+        // Check if discovery reports already exist
+        var expectedReports = new[]
+        {
+            $"{slug}-Legacy-Discovery-Report.md",
+            $"{slug}-Business-Requirements.md",
+            $"{slug}-Process-Maps.md"
+        };
+        var existingReports = new List<string>();
+        var missingReports = new List<string>();
+        if (reportsPath is not null)
+        {
+            foreach (var report in expectedReports)
+            {
+                var path = System.IO.Path.Combine(reportsPath, report);
+                if (System.IO.File.Exists(path))
+                    existingReports.Add(report);
+                else
+                    missingReports.Add(report);
+            }
+        }
+        else
+        {
+            missingReports.AddRange(expectedReports);
+        }
+
         if (!string.IsNullOrWhiteSpace(sourcePath))
         {
-            _autoPrompt = $"Analyze the legacy application at: {sourcePath}\n\n" +
-                "Perform a full discovery:\n" +
-                "1. Scan the codebase and identify all projects, forms, classes, and SQL scripts\n" +
-                "2. Determine the application type (.NET Framework version, UI technology)\n" +
-                "3. Map the architecture and component relationships\n" +
-                "4. Extract business rules from code and stored procedures\n" +
-                $"5. Document all findings in {reportsDir}/{slug}-Legacy-Discovery-Report.md\n" +
-                $"6. Document extracted business requirements in {reportsDir}/{slug}-Business-Requirements.md\n" +
-                $"7. Document process flows in {reportsDir}/{slug}-Process-Maps.md\n\n" +
-                $"Generate all reports as markdown files in the {reportsDir}/ directory.";
+            if (existingReports.Count == expectedReports.Length)
+            {
+                // All reports exist — don't re-run full discovery
+                _autoPrompt = $"The discovery phase for the application at {sourcePath} has already been completed.\n\n" +
+                    $"The following reports exist in {reportsDir}/:\n" +
+                    string.Join("\n", existingReports.Select(r => $"- {r}")) + "\n\n" +
+                    "Review these reports and provide a brief summary of key findings. " +
+                    "If the user asks, you can refine or regenerate specific reports.";
+            }
+            else if (existingReports.Count > 0)
+            {
+                // Partial — only generate missing reports
+                _autoPrompt = $"Analyze the legacy application at: {sourcePath}\n\n" +
+                    "Some discovery reports already exist:\n" +
+                    string.Join("\n", existingReports.Select(r => $"- ✅ {r}")) + "\n" +
+                    string.Join("\n", missingReports.Select(r => $"- ❌ {r} (MISSING — generate this)")) + "\n\n" +
+                    $"Only generate the missing reports in {reportsDir}/. Do NOT regenerate existing ones.";
+            }
+            else
+            {
+                // No reports — full discovery
+                _autoPrompt = $"Analyze the legacy application at: {sourcePath}\n\n" +
+                    "Perform a full discovery:\n" +
+                    "1. Scan the codebase and identify all projects, forms, classes, and SQL scripts\n" +
+                    "2. Determine the application type (.NET Framework version, UI technology)\n" +
+                    "3. Map the architecture and component relationships\n" +
+                    "4. Extract business rules from code and stored procedures\n" +
+                    $"5. Document all findings in {reportsDir}/{slug}-Legacy-Discovery-Report.md\n" +
+                    $"6. Document extracted business requirements in {reportsDir}/{slug}-Business-Requirements.md\n" +
+                    $"7. Document process flows in {reportsDir}/{slug}-Process-Maps.md\n\n" +
+                    $"Generate all reports as markdown files in the {reportsDir}/ directory.";
+            }
         }
         else
         {
@@ -282,5 +336,20 @@ else
         public long Size { get; init; }
         public DateTime LastModified { get; init; }
         public string Preview { get; init; } = "";
+    }
+
+    private bool AllReportsExist()
+    {
+        var reportsPath = StateService.GetCurrentProjectReportsPath();
+        if (reportsPath is null) return false;
+
+        var slug = StateService.GetProjectSlug();
+        var expected = new[]
+        {
+            $"{slug}-Legacy-Discovery-Report.md",
+            $"{slug}-Business-Requirements.md",
+            $"{slug}-Process-Maps.md"
+        };
+        return expected.All(f => System.IO.File.Exists(System.IO.Path.Combine(reportsPath, f)));
     }
 }
