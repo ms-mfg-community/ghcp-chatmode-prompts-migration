@@ -90,6 +90,7 @@
     private string _userInput = "";
     private bool _isLoading;
     private bool _isInitializing;
+    private string? _lastAutoPromptSent;
     private bool _shouldPreventDefault;
     private string? _currentSessionId;
     private string? _sessionError;
@@ -108,6 +109,21 @@
             CopilotService.OnSessionIdle += HandleSessionIdle;
 
             await InitializeSessionAsync();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // If AutoPrompt was set/changed after session was already initialized, send it
+        if (!string.IsNullOrWhiteSpace(AutoPrompt)
+            && AutoPrompt != _lastAutoPromptSent
+            && _currentSessionId is not null
+            && _messages.Count == 0
+            && !_isLoading)
+        {
+            _lastAutoPromptSent = AutoPrompt;
+            _userInput = AutoPrompt;
+            await SendMessageAsync();
         }
     }
 
@@ -166,6 +182,7 @@
                 // Auto-send initial prompt if provided and chat is empty
                 if (!string.IsNullOrWhiteSpace(AutoPrompt) && _currentSessionId is not null && _messages.Count == 0)
                 {
+                    _lastAutoPromptSent = AutoPrompt;
                     _userInput = AutoPrompt;
                     await SendMessageAsync();
                 }
