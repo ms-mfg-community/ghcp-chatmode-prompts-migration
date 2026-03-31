@@ -4,6 +4,7 @@
 @using AppModernization.Web.Components.Wizard
 @inject Services.MigrationStateService StateService
 @inject NavigationManager Navigation
+@inject IWebHostEnvironment Env
 
 <PageTitle>Phase 0: Discover — App Modernization</PageTitle>
 
@@ -183,24 +184,46 @@ else
     private void LoadReportSummaries()
     {
         _reportSummaries.Clear();
-        var reportsPath = StateService.GetCurrentProjectReportsPath();
-        if (reportsPath is null || !System.IO.Directory.Exists(reportsPath)) return;
-
-        var repoReportsPath = System.IO.Path.GetFullPath(
-            System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "reports"));
-
         var discoveryReports = new[] { "Legacy-Discovery-Report.md", "Business-Requirements.md", "Process-Maps.md" };
+
+        // Build list of directories to search (in priority order)
+        var searchDirs = new List<string>();
+
+        // 1. Project-scoped reports dir
+        var projectReportsPath = StateService.GetCurrentProjectReportsPath();
+        if (projectReportsPath is not null && System.IO.Directory.Exists(projectReportsPath))
+            searchDirs.Add(projectReportsPath);
+
+        // 2. Source project's reports dir (where Copilot agent writes when CWD is set)
+        var sourcePath = StateService.CurrentProject?.SourcePath;
+        if (!string.IsNullOrWhiteSpace(sourcePath))
+        {
+            var sourceReportsPath = System.IO.Path.Combine(sourcePath, "reports");
+            if (System.IO.Directory.Exists(sourceReportsPath))
+                searchDirs.Add(sourceReportsPath);
+        }
+
+        // 3. Repo-level reports dir
+        var repoReportsPath = System.IO.Path.GetFullPath(
+            System.IO.Path.Combine(Env.ContentRootPath, "..", "..", "reports"));
+        if (System.IO.Directory.Exists(repoReportsPath))
+            searchDirs.Add(repoReportsPath);
 
         foreach (var reportName in discoveryReports)
         {
-            var filePath = System.IO.Path.Combine(reportsPath, reportName);
-            if (!System.IO.File.Exists(filePath))
+            // Find the first directory that has this report
+            string? filePath = null;
+            foreach (var dir in searchDirs)
             {
-                if (System.IO.Directory.Exists(repoReportsPath))
-                    filePath = System.IO.Path.Combine(repoReportsPath, reportName);
+                var candidate = System.IO.Path.Combine(dir, reportName);
+                if (System.IO.File.Exists(candidate))
+                {
+                    filePath = candidate;
+                    break;
+                }
             }
 
-            if (System.IO.File.Exists(filePath))
+            if (filePath is not null)
             {
                 var fi = new System.IO.FileInfo(filePath);
                 var content = System.IO.File.ReadAllText(filePath);
