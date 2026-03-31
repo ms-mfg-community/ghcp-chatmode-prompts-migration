@@ -230,21 +230,33 @@ sequenceDiagram
 
 ## End-to-End Data Flow
 
-```
-┌──────────┐     ┌──────────┐     ┌──────────────────┐     ┌──────────────┐
-│  Browser  │────▶│  Blazor   │────▶│    Services       │────▶│  Persistence │
-│  (User)   │◀────│  Server   │◀────│                  │◀────│              │
-└──────────┘     │ (SignalR) │     │ MigrationState   │     │ JSON Files   │
-                 └──────────┘     │ CopilotService   │     │ ~/.appmod/   │
-                                  │ AgentPromptService│     └──────────────┘
-                                  │ ProjectPersistence│
-                                  └────────┬─────────┘
-                                           │
-                                  ┌────────┴─────────┐
-                                  │  GitHub Copilot   │
-                                  │  SDK (stdio)      │
-                                  │                   │
-                                  │  Agent Prompts    │
-                                  │  .github/agents/  │
-                                  └───────────────────┘
+```mermaid
+flowchart LR
+    subgraph Client["Browser (User)"]
+        A[Blazor UI]
+    end
+    subgraph Server["Blazor Server (SignalR)"]
+        B[Razor Components]
+        C[Services Layer]
+    end
+    subgraph Persistence["Storage"]
+        D[(JSON Files<br/>~/.appmod/)]
+        E[Agent Prompts<br/>.github/agents/]
+        F[Skills<br/>.github/skills/]
+    end
+    subgraph AI["AI Engine"]
+        G[GitHub Copilot SDK<br/>stdio transport]
+    end
+
+    A <-->|SignalR| B
+    B --> C
+    C -->|Read/Write| D
+    C -->|Load prompts + skills| E
+    C -->|Load skill content| F
+    C <-->|JSON-RPC| G
+
+    style Client fill:#e3f2fd,stroke:#1565c0
+    style Server fill:#f3e5f5,stroke:#7b1fa2
+    style Persistence fill:#e8f5e9,stroke:#2e7d32
+    style AI fill:#fff3e0,stroke:#ef6c00
 ```

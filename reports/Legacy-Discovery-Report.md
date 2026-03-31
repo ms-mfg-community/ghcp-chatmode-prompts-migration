@@ -51,38 +51,59 @@ The application is **not itself a legacy system** — it is a modern migration t
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Browser (User)                           │
-├─────────────────────────────────────────────────────────────────┤
-│                   Blazor Server (SignalR)                        │
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐                │
-│  │  Home Page  │  │ Dashboard  │  │Phase Pages │ × 9            │
-│  │  (create)   │  │ (progress) │  │(chat+guide)│                │
-│  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘                │
-│        │               │               │                        │
-│  ┌─────┴───────────────┴───────────────┴──────┐                 │
-│  │              Shared Components              │                │
-│  │  PhasePage · ChatPanel · ChatMessageBubble  │                │
-│  │  PhaseProgressBar · NavMenu · AuthBar       │                │
-│  └─────────────────┬───────────────────────────┘                │
-│                    │                                            │
-│  ┌─────────────────┴───────────────────────────┐                │
-│  │                  Services                    │                │
-│  │  MigrationStateService (Scoped)             │                │
-│  │  CopilotService (Singleton)                 │                │
-│  │  AgentPromptService (Singleton)             │                │
-│  │  ProjectPersistenceService (Singleton)      │                │
-│  └──────┬──────────────┬───────────────────────┘                │
-│         │              │                                        │
-│  ┌──────┴──────┐ ┌─────┴─────────────┐                         │
-│  │ JSON Files  │ │ GitHub Copilot SDK │                         │
-│  │ ~/.appmod/  │ │ (stdio transport)  │                         │
-│  └─────────────┘ └───────────────────┘                          │
-├─────────────────────────────────────────────────────────────────┤
-│                 Azure App Service (Bicep IaC)                   │
-│                 Application Insights (Monitoring)               │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Browser["🌐 Browser (User)"]
+        U[User Interface]
+    end
+
+    subgraph BlazorServer["Blazor Server (SignalR)"]
+        subgraph Pages["Pages"]
+            Home[Home Page<br/>Create Project]
+            Dash[Dashboard<br/>Progress]
+            Phase[Phase Pages × 9<br/>Chat + Guide]
+        end
+        subgraph Shared["Shared Components"]
+            PP[PhasePage]
+            CP[ChatPanel]
+            CMB[ChatMessageBubble]
+            PPB[PhaseProgressBar]
+            NM[NavMenu]
+            AB[AuthBar]
+        end
+        subgraph Services["Services"]
+            MSS["MigrationStateService<br/>(Scoped)"]
+            CS["CopilotService<br/>(Singleton)"]
+            APS["AgentPromptService<br/>(Singleton)"]
+            PPS["ProjectPersistenceService<br/>(Singleton)"]
+        end
+    end
+
+    subgraph External["External Systems"]
+        SDK["GitHub Copilot SDK<br/>(stdio transport)"]
+        JSON[(JSON Files<br/>~/.appmod/)]
+        Agents[Agent Prompts<br/>.github/agents/]
+        Skills[Skills<br/>.github/skills/]
+    end
+
+    subgraph Azure["Azure (Deployment Target)"]
+        AppSvc[Azure App Service]
+        AppIns[Application Insights]
+    end
+
+    U <-->|SignalR| Pages
+    Pages --> Shared
+    Shared --> Services
+    CS <-->|JSON-RPC| SDK
+    APS -->|Load| Agents
+    APS -->|Load| Skills
+    PPS -->|Read/Write| JSON
+    BlazorServer -->|Deploy via Bicep| Azure
+
+    style Browser fill:#e3f2fd,stroke:#1565c0
+    style BlazorServer fill:#f3e5f5,stroke:#7b1fa2
+    style External fill:#fff3e0,stroke:#ef6c00
+    style Azure fill:#e8f5e9,stroke:#2e7d32
 ```
 
 ---

@@ -5,7 +5,7 @@ description: >-
   and user stories for completeness, accuracy, missing edge cases, validation gaps,
   and logic inconsistencies.
 tools: ['read', 'edit', 'search', 'execute', 'web']
-skills: ['dotnet-legacy-analysis', 'sql-sp-analysis']
+skills: ['dotnet-legacy-analysis', 'sql-sp-analysis', 'mermaid-diagrams']
 ---
 
 # Phase 0 — Validate Extracted Requirements
