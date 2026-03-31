@@ -16,6 +16,7 @@ public class CopilotService : IAsyncDisposable
     private readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
     private readonly SemaphoreSlim _initLock = new(1, 1);
     private bool _initialized;
+    private string? _currentCwd;
 
     // Maps phase ID → session ID (so we can find existing sessions for a phase)
     private readonly ConcurrentDictionary<string, string> _phaseSessionMap = new();
@@ -113,109 +114,139 @@ public class CopilotService : IAsyncDisposable
     /// <summary>
     /// Creates a new CopilotSession for the given migration phase.
     /// The agent prompt is loaded from the .md file and injected as a system message in Append mode.
+    /// Synchronized to prevent concurrent client restarts.
     /// </summary>
     public async Task<string> CreateSessionForPhaseAsync(PhaseInfo phase, string? workingDirectory = null, CancellationToken cancellationToken = default)
     {
-        if (_client is null)
-            throw new InvalidOperationException("CopilotClient not initialized. Call InitializeAsync first.");
-
-        var agentPrompt = _agentPromptService.GetAgentPrompt(phase.AgentFile);
-
-        // If a working directory is specified, recreate the client with that CWD
-        // so the agent's file operations target the correct codebase
-        if (!string.IsNullOrWhiteSpace(workingDirectory) && Directory.Exists(workingDirectory))
+        // Check if we already have a session for this phase
+        var existingSessionId = GetSessionForPhase(phase.Id);
+        if (existingSessionId is not null)
         {
-            _logger.LogInformation("Setting Copilot working directory to: {Cwd}", workingDirectory);
-            // Stop existing client and restart with new CWD
-            if (_initialized)
-            {
-                try { await _client.StopAsync(); } catch { /* ignore */ }
-                _initialized = false;
-            }
-
-            _client = new CopilotClient(new CopilotClientOptions
-            {
-                AutoStart = true,
-                UseStdio = true,
-                Cwd = workingDirectory
-            });
-            await _client.StartAsync();
-            _initialized = true;
+            _logger.LogInformation("Reusing existing session {SessionId} for phase {PhaseId}", existingSessionId, phase.Id);
+            return existingSessionId;
         }
 
-        var session = await _client.CreateSessionAsync(new SessionConfig
+        // Serialize all session creation to prevent concurrent client restarts
+        await _initLock.WaitAsync(cancellationToken);
+        try
         {
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-            Streaming = true,
-            SystemMessage = new SystemMessageConfig
+            // Double-check after acquiring lock
+            existingSessionId = GetSessionForPhase(phase.Id);
+            if (existingSessionId is not null)
             {
-                Mode = SystemMessageMode.Append,
-                Content = agentPrompt
+                _logger.LogInformation("Reusing existing session {SessionId} for phase {PhaseId} (found after lock)", existingSessionId, phase.Id);
+                return existingSessionId;
             }
-        });
 
-        var sessionId = session.SessionId;
-        _sessions[sessionId] = session;
-        _phaseSessionMap[phase.Id] = sessionId;
-        _messageHistory[sessionId] = new List<ChatMessage>();
+            if (_client is null)
+                throw new InvalidOperationException("CopilotClient not initialized. Call InitializeAsync first.");
 
-        // Wire up event handlers
-        session.On(evt =>
-        {
-            switch (evt)
+            var agentPrompt = _agentPromptService.GetAgentPrompt(phase.AgentFile);
+
+            // Only restart the client if the CWD actually changed
+            if (!string.IsNullOrWhiteSpace(workingDirectory) && Directory.Exists(workingDirectory)
+                && !string.Equals(_currentCwd, workingDirectory, StringComparison.OrdinalIgnoreCase))
             {
-                case AssistantMessageDeltaEvent delta:
-                    // Skip empty deltas (e.g. tool execution start/complete signals)
-                    if (!string.IsNullOrEmpty(delta.Data.DeltaContent))
-                    {
+                _logger.LogInformation("Setting Copilot working directory to: {Cwd}", workingDirectory);
+
+                if (_initialized)
+                {
+                    try { await _client.StopAsync(); } catch { /* ignore */ }
+                    _initialized = false;
+                }
+
+                _client = new CopilotClient(new CopilotClientOptions
+                {
+                    AutoStart = true,
+                    UseStdio = true,
+                    Cwd = workingDirectory
+                });
+                await _client.StartAsync();
+                _initialized = true;
+                _currentCwd = workingDirectory;
+
+                // Brief pause after restart to let auth handshake complete
+                await Task.Delay(500, cancellationToken);
+            }
+
+            var session = await _client.CreateSessionAsync(new SessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+                Streaming = true,
+                SystemMessage = new SystemMessageConfig
+                {
+                    Mode = SystemMessageMode.Append,
+                    Content = agentPrompt
+                }
+            });
+
+            var sessionId = session.SessionId;
+            _sessions[sessionId] = session;
+            _phaseSessionMap[phase.Id] = sessionId;
+            _messageHistory[sessionId] = new List<ChatMessage>();
+
+            // Wire up event handlers
+            session.On(evt =>
+            {
+                switch (evt)
+                {
+                    case AssistantMessageDeltaEvent delta:
+                        // Skip empty deltas (e.g. tool execution start/complete signals)
+                        if (!string.IsNullOrEmpty(delta.Data.DeltaContent))
+                        {
+                            OnMessageReceived?.Invoke(sessionId, new ChatMessage
+                            {
+                                Role = "assistant",
+                                Content = delta.Data.DeltaContent,
+                                IsStreaming = true
+                            });
+                        }
+                        break;
+
+                    case AssistantMessageEvent msg:
+                        // Skip empty assistant messages (e.g. tool execution wrappers)
+                        if (!string.IsNullOrWhiteSpace(msg.Data.Content))
+                        {
+                            var chatMsg = new ChatMessage
+                            {
+                                Role = "assistant",
+                                Content = msg.Data.Content,
+                                IsStreaming = false
+                            };
+                            // Store in history for reconnect
+                            if (_messageHistory.TryGetValue(sessionId, out var hist))
+                            {
+                                lock (hist) { hist.Add(chatMsg); }
+                            }
+                            OnMessageReceived?.Invoke(sessionId, chatMsg);
+                        }
+                        // Don't signal idle for empty messages — wait for real SessionIdleEvent
+                        break;
+
+                    case SessionIdleEvent:
+                        _logger.LogDebug("Session {SessionId} is idle", sessionId);
+                        OnSessionIdle?.Invoke(sessionId);
+                        break;
+
+                    case SessionErrorEvent error:
+                        _logger.LogError("Session {SessionId} error: {Message}", sessionId, error.Data.Message);
                         OnMessageReceived?.Invoke(sessionId, new ChatMessage
                         {
-                            Role = "assistant",
-                            Content = delta.Data.DeltaContent,
-                            IsStreaming = true
-                        });
-                    }
-                    break;
-
-                case AssistantMessageEvent msg:
-                    // Skip empty assistant messages (e.g. tool execution wrappers)
-                    if (!string.IsNullOrWhiteSpace(msg.Data.Content))
-                    {
-                        var chatMsg = new ChatMessage
-                        {
-                            Role = "assistant",
-                            Content = msg.Data.Content,
+                            Role = "system",
+                            Content = $"Error: {error.Data.Message}",
                             IsStreaming = false
-                        };
-                        // Store in history for reconnect
-                        if (_messageHistory.TryGetValue(sessionId, out var hist))
-                        {
-                            lock (hist) { hist.Add(chatMsg); }
-                        }
-                        OnMessageReceived?.Invoke(sessionId, chatMsg);
-                    }
-                    // Don't signal idle for empty messages — wait for real SessionIdleEvent
-                    break;
+                        });
+                        break;
+                }
+            });
 
-                case SessionIdleEvent:
-                    _logger.LogDebug("Session {SessionId} is idle", sessionId);
-                    OnSessionIdle?.Invoke(sessionId);
-                    break;
-
-                case SessionErrorEvent error:
-                    _logger.LogError("Session {SessionId} error: {Message}", sessionId, error.Data.Message);
-                    OnMessageReceived?.Invoke(sessionId, new ChatMessage
-                    {
-                        Role = "system",
-                        Content = $"Error: {error.Data.Message}",
-                        IsStreaming = false
-                    });
-                    break;
-            }
-        });
-
-        _logger.LogInformation("Created session {SessionId} for phase {PhaseId}", sessionId, phase.Id);
-        return sessionId;
+            _logger.LogInformation("Created session {SessionId} for phase {PhaseId}", sessionId, phase.Id);
+            return sessionId;
+        }
+        finally
+        {
+            _initLock.Release();
+        }
     }
 
     /// <summary>
